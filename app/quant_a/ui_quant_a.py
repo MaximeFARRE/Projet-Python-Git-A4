@@ -8,7 +8,12 @@ import pandas as pd
 import streamlit as st
 
 from .data_loader import load_cac40_history
-from .strategies import buy_and_hold, moving_average_crossover
+from .strategies import (
+    buy_and_hold,
+    moving_average_crossover,
+    regime_switch_trend_meanrev,
+)
+
 from .metrics import compute_all_metrics
 
 
@@ -234,9 +239,12 @@ def render_quant_a_page():
     st.subheader("Paramètres de stratégie")
 
     strategy_name = st.selectbox(
-        "Choix de la stratégie",
-        ["Buy & Hold", "Moving Average Crossover"],
-    )
+    "Choix de la stratégie",
+    ["Buy & Hold",
+     "Moving Average Crossover",
+     "Regime Switching (Trend + Mean-Reversion)"],
+)
+
 
     short_window = None
     long_window = None
@@ -301,6 +309,62 @@ def render_quant_a_page():
             st.warning("La période courte doit être strictement inférieure à la période longue.")
             st.stop()
 
+    # ===================== PARAMÈTRES REGIME SWITCHING =====================
+    if strategy_name == "Regime Switching (Trend + Mean-Reversion)":
+
+        st.markdown("### Paramètres Regime Switching")
+
+        col_vol1, col_vol2, col_alpha = st.columns(3)
+        with col_vol1:
+            vol_short_window = st.slider(
+                "Fenêtre volatilité courte",
+                min_value=5,
+                max_value=60,
+                value=20,
+            )
+        with col_vol2:
+            vol_long_window = st.slider(
+                "Fenêtre volatilité longue",
+                min_value=50,
+                max_value=300,
+                value=100,
+            )
+        with col_alpha:
+            alpha = st.slider(
+                "Seuil de changement de régime (α)",
+                min_value=0.5,
+                max_value=2.0,
+                value=1.0,
+                step=0.05,
+            )
+
+        st.markdown("### Paramètres Trend-Following")
+        trend_ma_window = st.slider(
+            "Fenêtre moyenne mobile (Trend)",
+            min_value=10,
+            max_value=200,
+            value=50,
+        )
+
+        st.markdown("### Paramètres Mean-Reversion")
+        col_mr1, col_mr2 = st.columns(2)
+        with col_mr1:
+            mr_window = st.slider(
+                "Fenêtre Mean-Reversion",
+                min_value=10,
+                max_value=60,
+                value=20,
+            )
+        with col_mr2:
+            z_threshold = st.slider(
+                "Seuil Z-score",
+                min_value=0.5,
+                max_value=3.0,
+                value=1.0,
+                step=0.1,
+            )
+
+
     if prices.empty:
         st.warning("Aucune donnée de prix disponible.")
         return
@@ -310,7 +374,29 @@ def render_quant_a_page():
 
     if strategy_name == "Buy & Hold":
         strat_df = benchmark_df.copy()
+
+    elif strategy_name == "Moving Average Crossover":
+        strat_df = moving_average_crossover(
+            prices,
+            short_window=st.session_state.short_window,
+            long_window=st.session_state.long_window,
+        )
+
+    elif strategy_name == "Regime Switching (Trend + Mean-Reversion)":
+        strat_df = regime_switch_trend_meanrev(
+            prices,
+            vol_short_window=vol_short_window,
+            vol_long_window=vol_long_window,
+            alpha=alpha,
+            trend_ma_window=trend_ma_window,
+            mr_window=mr_window,
+            z_threshold=z_threshold,
+        )
+
     else:
+        st.error("Stratégie inconnue.")
+        st.stop()
+
         strat_df = moving_average_crossover(
             prices,
             short_window=st.session_state.short_window,
@@ -334,6 +420,21 @@ def render_quant_a_page():
             ma_df = strat_df[["price", "ma_short", "ma_long"]].dropna()
             ma_df = ma_df.rename(columns={"price": "Prix CAC 40"})
             st.line_chart(ma_df)
+            
+    if strategy_name == "Regime Switching (Trend + Mean-Reversion)":
+        with st.expander("📊 Détails du modèle (debug)"):
+            debug_df = strat_df[[
+                "regime",
+                "vol_short",
+                "vol_long",
+                "ma_trend",
+                "zscore",
+                "trend_signal",
+                "mr_signal",
+                "position",
+            ]].dropna()
+            st.dataframe(debug_df.tail(25))
+
 
     # ---------- 2.7. MÉTRIQUES : STRATÉGIE VS BUY & HOLD ----------
     st.subheader("Métriques de performance : stratégie vs Buy & Hold")

@@ -427,6 +427,45 @@ def render_quant_a_page():
                 value=1.0,
                 step=0.1,
             )
+        
+    
+        # ----- Bouton d'optimisation automatique -----
+        if "optimize_regime" not in st.session_state:
+            st.session_state.optimize_regime = False
+
+        if st.button("🔍 Optimiser automatiquement les paramètres", key="optimize_regime_button"):
+            st.session_state.optimize_regime = True
+
+
+        # ----- exécution de l’optimisation -----
+        if st.session_state.optimize_regime:
+            with st.spinner("Optimisation en cours..."):
+                result = _optimize_regime_switching(prices, periods_per_year)
+
+            st.session_state.optimize_regime = False  # évite les reruns infinis
+
+            if result is None:
+                st.error("Impossible de trouver des paramètres optimaux.")
+            else:
+                st.success(
+                    f"Paramètres optimaux trouvés : "
+                    f"vol_short={result['vol_short_window']}, "
+                    f"vol_long={result['vol_long_window']}, "
+                    f"α={result['alpha']}, "
+                    f"MA_trend={result['trend_ma_window']}, "
+                    f"MR_window={result['mr_window']}, "
+                    f"Z={result['z_threshold']} "
+                    f"(Rendement total ≈ {result['metrics']['total_return']*100:.2f} %)"
+                )
+
+                # On met à jour les sliders directement via session_state
+                st.session_state["vol_short_window"] = result["vol_short_window"]
+                st.session_state["vol_long_window"] = result["vol_long_window"]
+                st.session_state["alpha"] = result["alpha"]
+                st.session_state["trend_ma_window"] = result["trend_ma_window"]
+                st.session_state["mr_window"] = result["mr_window"]
+                st.session_state["z_threshold"] = result["z_threshold"]
+
 
 
     if prices.empty:

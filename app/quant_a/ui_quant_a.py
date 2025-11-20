@@ -8,13 +8,15 @@ import pandas as pd
 import streamlit as st
 
 from .data_loader import load_cac40_history
+
 from .strategies import (
     buy_and_hold,
     moving_average_crossover,
     regime_switch_trend_meanrev,
+    extract_trades_from_position,   
 )
 
-from .metrics import compute_all_metrics
+from .metrics import compute_all_metrics, compute_trade_metrics
 
 
 def _get_periods_per_year(interval: str) -> int:
@@ -505,6 +507,13 @@ def render_quant_a_page():
             short_window=st.session_state.short_window,
             long_window=st.session_state.long_window,
         )
+    
+    # ---------- 2.5.bis. EXTRACTION DES TRADES ----------
+    trades_df = extract_trades_from_position(
+        strat_df["price"],
+        strat_df["position"],
+)
+
 
     # ---------- 2.6. GRAPHIQUE COMPARATIF ----------
     st.subheader("Comparaison sur une base normalisée (valeur 1 au départ)")
@@ -540,6 +549,8 @@ def render_quant_a_page():
 
 
     # ---------- 2.7. MÉTRIQUES : STRATÉGIE VS BUY & HOLD ----------
+
+
     st.subheader("Métriques de performance : stratégie vs Buy & Hold")
 
     benchmark_metrics = compute_all_metrics(
@@ -584,6 +595,70 @@ def render_quant_a_page():
         st.metric("Sharpe ratio", sharpe_strat_str)
         st.metric("Max drawdown", f"{strategy_metrics['max_drawdown'] * 100:.2f} %")
 
+    # ---------- 2.7.bis. MÉTRIQUES DE TRADING (STRATÉGIE SÉLECTIONNÉE) ----------
+    st.subheader("Métriques de trading de la stratégie sélectionnée")
+
+    if trades_df.empty:
+        st.info("Aucun trade détecté pour cette stratégie sur la période.")
+    else:
+        trade_metrics = compute_trade_metrics(trades_df)
+
+        n_trades = trade_metrics["n_trades"]
+        win_rate = trade_metrics["win_rate"]
+        pct_longs = trade_metrics["pct_longs"]
+        pct_shorts = trade_metrics["pct_shorts"]
+        avg_trade_return = trade_metrics["avg_trade_return"]
+        avg_win_return = trade_metrics["avg_win_return"]
+        avg_loss_return = trade_metrics["avg_loss_return"]
+        avg_holding_period = trade_metrics["avg_holding_period"]
+
+        col_t1, col_t2, col_t3 = st.columns(3)
+
+        col_t1.metric("Nombre de trades", f"{n_trades}")
+        col_t2.metric(
+            "Taux de trades gagnants",
+            f"{win_rate * 100:.2f} %" if win_rate == win_rate else "N/A",
+        )
+        col_t3.metric(
+            "Trades LONG vs SHORT",
+            (
+                f"{pct_longs * 100:.1f} % long / {pct_shorts * 100:.1f} % short"
+                if pct_longs == pct_longs and pct_shorts == pct_shorts
+                else "N/A"
+            ),
+        )
+
+        col_t4, col_t5, col_t6 = st.columns(3)
+        col_t4.metric(
+            "Rendement moyen par trade",
+            f"{avg_trade_return * 100:.2f} %" if avg_trade_return == avg_trade_return else "N/A",
+        )
+        col_t5.metric(
+            "Gain moyen (trades gagnants)",
+            f"{avg_win_return * 100:.2f} %" if avg_win_return == avg_win_return else "N/A",
+        )
+        col_t6.metric(
+            "Perte moyenne (trades perdants)",
+            f"{avg_loss_return * 100:.2f} %" if avg_loss_return == avg_loss_return else "N/A",
+        )
+
+        st.metric(
+            "Durée moyenne des trades (en barres)",
+            f"{avg_holding_period:.1f}" if avg_holding_period == avg_holding_period else "N/A",
+        )
+
+        with st.expander("📜 Historique détaillé des trades"):
+            display_cols = [
+                "entry_date",
+                "exit_date",
+                "direction",
+                "entry_price",
+                "exit_price",
+                "holding_period_bars",
+                "trade_return_pct",
+            ]
+            st.dataframe(trades_df[display_cols])
+
     # ---------- 2.8. INTERPRÉTATION QUALITATIVE ----------
     st.subheader("Comparaison qualitative")
 
@@ -594,4 +669,3 @@ def render_quant_a_page():
     # ---------- 2.9. APERÇU DES DONNÉES BRUTES ----------
     with st.expander("Voir un extrait des données brutes"):
         st.dataframe(df.tail(10))
-# ===================== FIN DU FICHIER =====================

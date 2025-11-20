@@ -31,10 +31,14 @@ def render_quant_a_page():
         """
         Ce module analyse **exclusivement le CAC 40** à partir de données Yahoo Finance.
         
-        Utilisez les contrôles ci-dessous pour :
-        - choisir la **périodicité** des données (journalier, hebdomadaire, mensuel),
-        - configurer les **paramètres de stratégie** (Buy & Hold ou Crossover de moyennes mobiles),
-        - visualiser la performance de la stratégie et ses **métriques**.
+        Objectifs :
+        - Configurer la **périodicité** des données (journalier, hebdomadaire, mensuel)
+        - Choisir une **stratégie** (Buy & Hold ou Crossover de moyennes mobiles)
+        - Comparer la **stratégie** au **Buy & Hold sur l’indice** :
+            - en termes de rendement,
+            - de volatilité,
+            - de Sharpe ratio,
+            - de **max drawdown**.
         """
     )
 
@@ -130,9 +134,12 @@ def render_quant_a_page():
         st.warning("Aucune donnée de prix disponible.")
         return
 
+    # ===================== BENCHMARK : BUY & HOLD SUR LE CAC 40 =====================
+    benchmark_df = buy_and_hold(prices)
+
     # ===================== APPLICATION DE LA STRATÉGIE =====================
     if strategy_name == "Buy & Hold":
-        strat_df = buy_and_hold(prices)
+        strat_df = benchmark_df.copy()
     else:
         strat_df = moving_average_crossover(
             prices,
@@ -140,13 +147,14 @@ def render_quant_a_page():
             long_window=long_window,
         )
 
-    # ===================== GRAPHIQUE : PRIX VS STRATÉGIE =====================
-    st.subheader("Comparaison prix / stratégie")
+    # ===================== GRAPHIQUE : STRATÉGIE VS BUY & HOLD =====================
+    st.subheader("Comparaison sur une base normalisée (valeur 1 au départ)")
 
+    # On compare en **valeur de portefeuille** (courbes d’équité normalisées)
     chart_df = pd.DataFrame(
         {
-            "Prix CAC 40": strat_df["price"],
-            "Stratégie (valeur cumulée)": strat_df["equity_curve"],
+            "Buy & Hold CAC 40": benchmark_df["equity_curve"],
+            "Stratégie sélectionnée": strat_df["equity_curve"],
         }
     )
 
@@ -158,29 +166,94 @@ def render_quant_a_page():
             ma_df = ma_df.rename(columns={"price": "Prix CAC 40"})
             st.line_chart(ma_df)
 
-    # ===================== MÉTRIQUES DE PERFORMANCE =====================
-    st.subheader("Métriques de performance de la stratégie")
+    # ===================== MÉTRIQUES : STRATÉGIE VS BUY & HOLD =====================
+    st.subheader("Métriques de performance : stratégie vs Buy & Hold")
 
     periods_per_year = _get_periods_per_year(interval)
 
-    metrics = compute_all_metrics(
+    benchmark_metrics = compute_all_metrics(
+        equity_curve=benchmark_df["equity_curve"],
+        returns=benchmark_df["strategy_returns"],
+        risk_free_rate=0.0,
+        periods_per_year=periods_per_year,
+    )
+
+    strategy_metrics = compute_all_metrics(
         equity_curve=strat_df["equity_curve"],
         returns=strat_df["strategy_returns"],
         risk_free_rate=0.0,
         periods_per_year=periods_per_year,
     )
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Rendement total", f"{metrics['total_return'] * 100:.2f} %")
-    col2.metric("Rendement annualisé", f"{metrics['annualized_return'] * 100:.2f} %")
-    col3.metric("Volatilité annualisée", f"{metrics['annualized_volatility'] * 100:.2f} %")
+    # ---- Affichage côte à côte ----
+    col_bh, col_strat = st.columns(2)
 
-    col4, col5 = st.columns(2)
-    sharpe_val = metrics["sharpe_ratio"]
-    sharpe_str = "N/A" if pd.isna(sharpe_val) else f"{sharpe_val:.2f}"
-    col4.metric("Sharpe ratio", sharpe_str)
-    col5.metric("Max drawdown", f"{metrics['max_drawdown'] * 100:.2f} %")
+    with col_bh:
+        st.markdown("### Buy & Hold CAC 40")
+        st.metric("Rendement total", f"{benchmark_metrics['total_return'] * 100:.2f} %")
+        st.metric("Rendement annualisé", f"{benchmark_metrics['annualized_return'] * 100:.2f} %")
+        st.metric("Volatilité annualisée", f"{benchmark_metrics['annualized_volatility'] * 100:.2f} %")
+        sharpe_bh = benchmark_metrics["sharpe_ratio"]
+        sharpe_bh_str = "N/A" if pd.isna(sharpe_bh) else f"{sharpe_bh:.2f}"
+        st.metric("Sharpe ratio", sharpe_bh_str)
+        st.metric("Max drawdown", f"{benchmark_metrics['max_drawdown'] * 100:.2f} %")
 
-    # ===================== APERÇU DES DONNÉES =====================
+    with col_strat:
+        st.markdown("### Stratégie sélectionnée")
+        st.metric("Rendement total", f"{strategy_metrics['total_return'] * 100:.2f} %")
+        st.metric("Rendement annualisé", f"{strategy_metrics['annualized_return'] * 100:.2f} %")
+        st.metric("Volatilité annualisée", f"{strategy_metrics['annualized_volatility'] * 100:.2f} %")
+        sharpe_strat = strategy_metrics["sharpe_ratio"]
+        sharpe_strat_str = "N/A" if pd.isna(sharpe_strat) else f"{sharpe_strat:.2f}"
+        st.metric("Sharpe ratio", sharpe_strat_str)
+        st.metric("Max drawdown", f"{strategy_metrics['max_drawdown'] * 100:.2f} %")
+
+    # ===================== INTERPRÉTATION : SURPERFORMANCE, RISQUE, DRAWDOWN =====================
+    st.subheader("Comparaison qualitative")
+
+    tr_bh = benchmark_metrics["total_return"]
+    tr_strat = strategy_metrics["total_return"]
+
+    mdd_bh = benchmark_metrics["max_drawdown"]  # négatif
+    mdd_strat = strategy_metrics["max_drawdown"]
+
+    sharpe_bh_val = benchmark_metrics["sharpe_ratio"]
+    sharpe_strat_val = strategy_metrics["sharpe_ratio"]
+
+    messages = []
+
+    # Surperformance (rendement)
+    if pd.notna(tr_bh) and pd.notna(tr_strat):
+        if tr_strat > tr_bh:
+            messages.append("✅ La stratégie **surperforme** le Buy & Hold en termes de rendement total.")
+        elif tr_strat < tr_bh:
+            messages.append("⚠️ La stratégie **sous-performe** le Buy & Hold en termes de rendement total.")
+        else:
+            messages.append("ℹ️ La stratégie a un rendement total **équivalent** au Buy & Hold.")
+
+    # Max drawdown (on compare la magnitude de la perte max)
+    if pd.notna(mdd_bh) and pd.notna(mdd_strat):
+        if abs(mdd_strat) < abs(mdd_bh):
+            messages.append("✅ La stratégie a un **max drawdown plus faible** que le Buy & Hold (meilleure protection contre les pertes).")
+        elif abs(mdd_strat) > abs(mdd_bh):
+            messages.append("⚠️ La stratégie a un **max drawdown plus élevé** que le Buy & Hold (risque de perte max plus important).")
+        else:
+            messages.append("ℹ️ La stratégie a un max drawdown **similaire** au Buy & Hold.")
+
+    # Sharpe ratio (performance ajustée du risque)
+    if pd.notna(sharpe_bh_val) and pd.notna(sharpe_strat_val):
+        if sharpe_strat_val > sharpe_bh_val:
+            messages.append("✅ La stratégie présente un **meilleur Sharpe ratio** que le Buy & Hold (meilleure performance ajustée du risque).")
+        elif sharpe_strat_val < sharpe_bh_val:
+            messages.append("⚠️ La stratégie a un **Sharpe ratio plus faible** que le Buy & Hold (moins bonne performance ajustée du risque).")
+        else:
+            messages.append("ℹ️ La stratégie a un Sharpe ratio **proche** de celui du Buy & Hold.")
+    else:
+        messages.append("ℹ️ Le Sharpe ratio n'est pas disponible pour l'une des deux séries (données insuffisantes ou volatilité nulle).")
+
+    for msg in messages:
+        st.markdown(msg)
+
+    # ===================== APERÇU DES DONNÉES BRUTES =====================
     with st.expander("Voir un extrait des données brutes"):
         st.dataframe(df.tail(10))

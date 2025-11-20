@@ -384,14 +384,14 @@ def render_quant_a_page():
                 "Fenêtre volatilité courte",
                 min_value=5,
                 max_value=60,
-                value=20,
+                value=30,
             )
         with col_vol2:
             vol_long_window = st.slider(
                 "Fenêtre volatilité longue",
                 min_value=50,
                 max_value=300,
-                value=100,
+                value=80,
             )
         with col_alpha:
             alpha = st.slider(
@@ -407,7 +407,7 @@ def render_quant_a_page():
             "Fenêtre moyenne mobile (Trend)",
             min_value=10,
             max_value=200,
-            value=50,
+            value=30,
         )
 
         st.markdown("### Paramètres Mean-Reversion")
@@ -417,14 +417,14 @@ def render_quant_a_page():
                 "Fenêtre Mean-Reversion",
                 min_value=10,
                 max_value=60,
-                value=20,
+                value=30,
             )
         with col_mr2:
             z_threshold = st.slider(
                 "Seuil Z-score",
                 min_value=0.5,
                 max_value=3.0,
-                value=1.0,
+                value=0.8,
                 step=0.1,
             )
         

@@ -228,3 +228,128 @@ def regime_switch_trend_meanrev(
     df["mr_signal"] = mr_sig
 
     return df
+
+# =====================================================================
+# 4) EXTRACTION DES TRADES À PARTIR D'UNE SÉRIE DE POSITIONS
+# =====================================================================
+
+def extract_trades_from_position(
+    prices: pd.Series,
+    position: pd.Series,
+) -> pd.DataFrame:
+    """
+    À partir d'une série de prix et d'une série de positions (-1, 0, +1),
+    reconstruit l'historique des trades :
+
+    - entry_date
+    - exit_date
+    - direction (LONG / SHORT)
+    - entry_price
+    - exit_price
+    - holding_period_bars (nombre de pas de temps)
+    - trade_return (en %)
+
+    Hypothèses :
+    - On ouvre un trade quand on passe de 0 à != 0,
+      ou quand on change de signe (ex: +1 -> -1 = close puis open).
+    - On ferme un trade quand on repasse à 0
+      ou quand le signe change.
+    """
+
+    prices = _to_series(prices).sort_index()
+    position = _to_series(position).reindex(prices.index).fillna(0.0)
+
+    # Direction = signe de la position
+    direction = position.apply(lambda x: 0 if x == 0 else (1 if x > 0 else -1))
+    prev_direction = direction.shift(1).fillna(0).astype(int)
+
+    trades = []
+    open_trade = None  # dict temporaire
+
+    idx = prices.index
+
+    for t in idx:
+        dir_now = int(direction.loc[t])
+        dir_prev = int(prev_direction.loc[t])
+        price_now = float(prices.loc[t])
+
+        # --- CAS 1 : ouverture de trade ---
+        if dir_prev == 0 and dir_now != 0:
+            # on ouvre un nouveau trade
+            open_trade = {
+                "entry_date": t,
+                "entry_price": price_now,
+                "direction": "LONG" if dir_now > 0 else "SHORT",
+            }
+
+        # --- CAS 2 : fermeture (et éventuellement réouverture) ---
+        elif dir_prev != 0:
+            # Si on repasse à 0 OU on change de signe => fermeture du trade en cours
+            if dir_now == 0 or dir_now != dir_prev:
+                if open_trade is not None:
+                    open_trade["exit_date"] = t
+                    open_trade["exit_price"] = price_now
+
+                    # Calcul du rendement du trade
+                    if open_trade["direction"] == "LONG":
+                        tr = open_trade["exit_price"] / open_trade["entry_price"] - 1.0
+                    else:  # SHORT
+                        tr = open_trade["entry_price"] / open_trade["exit_price"] - 1.0
+
+                    open_trade["trade_return"] = tr
+                    open_trade["holding_period_bars"] = (
+                        prices.loc[open_trade["entry_date"]:open_trade["exit_date"]].shape[0] - 1
+                    )
+
+                    trades.append(open_trade)
+
+                open_trade = None
+
+                # Si dir_now != 0, on ouvre un nouveau trade immédiatement
+                if dir_now != 0:
+                    open_trade = {
+                        "entry_date": t,
+                        "entry_price": price_now,
+                        "direction": "LONG" if dir_now > 0 else "SHORT",
+                    }
+
+        # sinon : dir_prev == dir_now (position stable) -> rien à faire
+
+    # Si un trade reste ouvert à la fin, on le clôture sur le dernier prix
+    if open_trade is not None and "exit_date" not in open_trade:
+        last_t = idx[-1]
+        last_price = float(prices.iloc[-1])
+
+        open_trade["exit_date"] = last_t
+        open_trade["exit_price"] = last_price
+
+        if open_trade["direction"] == "LONG":
+            tr = open_trade["exit_price"] / open_trade["entry_price"] - 1.0
+        else:
+            tr = open_trade["entry_price"] / open_trade["exit_price"] - 1.0
+
+        open_trade["trade_return"] = tr
+        open_trade["holding_period_bars"] = (
+            prices.loc[open_trade["entry_date"]:open_trade["exit_date"]].shape[0] - 1
+        )
+
+        trades.append(open_trade)
+
+    if not trades:
+        return pd.DataFrame(
+            columns=[
+                "entry_date",
+                "exit_date",
+                "direction",
+                "entry_price",
+                "exit_price",
+                "holding_period_bars",
+                "trade_return",
+            ]
+        )
+
+    trades_df = pd.DataFrame(trades)
+    trades_df["trade_return_pct"] = trades_df["trade_return"] * 100.0
+
+    return trades_df
+# =====================================================================

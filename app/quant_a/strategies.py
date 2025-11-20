@@ -81,3 +81,34 @@ def moving_average_crossover(
     df["ma_long"] = ma_long
 
     return df
+
+# =====================================================================
+# 3) STRATÉGIE REGIME SWITCHING : Trend-Following + Mean-Reversion
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# A. CALCULS UTILITAIRES : volatilité, MA, z-score
+# ---------------------------------------------------------------------
+
+def _rolling_volatility(returns: pd.Series, window: int) -> pd.Series:
+    """
+    Volatilité mobile simple (écart-type des rendements).
+    """
+    return returns.rolling(window=window).std()
+
+
+def _moving_average(prices: pd.Series, window: int) -> pd.Series:
+    """
+    Moyenne mobile simple.
+    """
+    return prices.rolling(window=window).mean()
+
+
+def _z_score(prices: pd.Series, window: int) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """
+    Retourne (mu, sigma, zscore) pour le mean reversion.
+    """
+    mu = prices.rolling(window).mean()
+    sigma = prices.rolling(window).std()
+    z = (prices - mu) / sigma
+    return mu, sigma, z

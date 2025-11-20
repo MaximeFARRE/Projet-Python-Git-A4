@@ -92,6 +92,70 @@ def _optimize_moving_average_params(
         "metrics": best_metrics,
     }
 
+def _optimize_regime_switching(prices, periods_per_year):
+    """
+    Optimise automatiquement les paramètres du modèle regime switching
+    en testant un ensemble réduit de valeurs.
+    """
+
+    # Grilles raisonnables pour ne pas exploser le temps de calcul
+    vol_short_list = [10, 20, 30]
+    vol_long_list = [80, 120, 150]
+    alpha_list = [0.9, 1.0, 1.1]
+    trend_ma_list = [30, 50, 100]
+    mr_window_list = [15, 20, 30]
+    z_threshold_list = [0.8, 1.0, 1.2]
+
+    best_score = -float("inf")
+    best_params = None
+    best_metrics = None
+
+    for vs in vol_short_list:
+        for vl in vol_long_list:
+            if vl <= vs:
+                continue
+
+            for alpha in alpha_list:
+                for ma_trend in trend_ma_list:
+                    for mr_w in mr_window_list:
+                        for z_th in z_threshold_list:
+
+                            df = regime_switch_trend_meanrev(
+                                prices,
+                                vol_short_window=vs,
+                                vol_long_window=vl,
+                                alpha=alpha,
+                                trend_ma_window=ma_trend,
+                                mr_window=mr_w,
+                                z_threshold=z_th,
+                            )
+
+                            metrics = compute_all_metrics(
+                                df["equity_curve"],
+                                df["strategy_returns"],
+                                periods_per_year=periods_per_year,
+                            )
+
+                            score = metrics["total_return"]
+
+                            if pd.notna(score) and score > best_score:
+                                best_score = score
+                                best_params = (vs, vl, alpha, ma_trend, mr_w, z_th)
+                                best_metrics = metrics
+
+    if best_params is None:
+        return None
+
+    return {
+        "vol_short_window": best_params[0],
+        "vol_long_window": best_params[1],
+        "alpha": best_params[2],
+        "trend_ma_window": best_params[3],
+        "mr_window": best_params[4],
+        "z_threshold": best_params[5],
+        "metrics": best_metrics,
+    }
+
 
 def _build_comparison_messages(
     benchmark_metrics: dict,

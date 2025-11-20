@@ -137,3 +137,39 @@ def _mean_reversion_signal(prices: pd.Series, mr_window: int, z_threshold: float
     sig[z < -z_threshold] = 1.0
     sig[z > +z_threshold] = -1.0
     return sig, mu, sigma, z
+
+# ---------------------------------------------------------------------
+# C. DÉTECTION DE RÉGIME (Volatilité court terme vs long terme)
+# ---------------------------------------------------------------------
+
+def _detect_regime(returns: pd.Series,
+                   vol_short_window: int,
+                   vol_long_window: int,
+                   alpha: float) -> pd.Series:
+    """
+    Régime = 'TREND' si vol_short > alpha * vol_long
+           = 'MR' sinon.
+    """
+    vol_short = _rolling_volatility(returns, vol_short_window)
+    vol_long = _rolling_volatility(returns, vol_long_window)
+
+    regime = pd.Series("MR", index=returns.index, dtype=object)
+    regime[vol_short > alpha * vol_long] = "TREND"
+
+    return regime, vol_short, vol_long
+
+
+# ---------------------------------------------------------------------
+# D. COMBINAISON DES RÉGIMES
+# ---------------------------------------------------------------------
+
+def _combine_signals(regime: pd.Series,
+                     trend_sig: pd.Series,
+                     mr_sig: pd.Series) -> pd.Series:
+    """
+    Combine les deux signaux selon le régime.
+    """
+    pos = pd.Series(0.0, index=regime.index)
+    pos[regime == "TREND"] = trend_sig[regime == "TREND"]
+    pos[regime == "MR"] = mr_sig[regime == "MR"]
+    return pos

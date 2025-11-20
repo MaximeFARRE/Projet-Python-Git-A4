@@ -112,3 +112,28 @@ def _z_score(prices: pd.Series, window: int) -> tuple[pd.Series, pd.Series, pd.S
     sigma = prices.rolling(window).std()
     z = (prices - mu) / sigma
     return mu, sigma, z
+
+# ---------------------------------------------------------------------
+# B. SIGNALS : Trend-Following et Mean-Reversion
+# ---------------------------------------------------------------------
+
+def _trend_signal(prices: pd.Series, ma_window: int) -> tuple[pd.Series, pd.Series]:
+    """
+    Trend-following : long si prix > MA, short si prix < MA.
+    """
+    ma = _moving_average(prices, ma_window)
+    sig = pd.Series(0, index=prices.index, dtype=float)
+    sig[prices > ma] = 1.0
+    sig[prices < ma] = -1.0
+    return sig, ma
+
+
+def _mean_reversion_signal(prices: pd.Series, mr_window: int, z_threshold: float):
+    """
+    Mean-Reversion : long si zscore < -seuil, short si zscore > +seuil.
+    """
+    mu, sigma, z = _z_score(prices, mr_window)
+    sig = pd.Series(0, index=prices.index, dtype=float)
+    sig[z < -z_threshold] = 1.0
+    sig[z > +z_threshold] = -1.0
+    return sig, mu, sigma, z

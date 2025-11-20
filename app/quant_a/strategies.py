@@ -173,3 +173,58 @@ def _combine_signals(regime: pd.Series,
     pos[regime == "TREND"] = trend_sig[regime == "TREND"]
     pos[regime == "MR"] = mr_sig[regime == "MR"]
     return pos
+
+# ---------------------------------------------------------------------
+# E. STRATÉGIE FINALE : Trend + Mean Reversion (Regime Switching)
+# ---------------------------------------------------------------------
+
+def regime_switch_trend_meanrev(
+    prices: pd.Series,
+    vol_short_window: int = 20,     # volatilité court terme
+    vol_long_window: int = 100,     # volatilité long terme
+    alpha: float = 1.0,              # seuil de changement de régime
+    trend_ma_window: int = 50,       # fenêtre trend-following
+    mr_window: int = 20,             # fenêtre MR
+    z_threshold: float = 1.0,        # seuil MR
+) -> pd.DataFrame:
+    """
+    Stratégie Regime Switching :
+    - Régime TREND : on suit la tendance (long ou short)
+    - Régime MR    : mean reversion (contrariant)
+    """
+
+    prices = _to_series(prices).sort_index()
+    returns = prices.pct_change().fillna(0.0)
+
+    # 1. Régime
+    regime, vol_short, vol_long = _detect_regime(
+        returns,
+        vol_short_window,
+        vol_long_window,
+        alpha,
+    )
+
+    # 2. Trend-following signal
+    trend_sig, ma_trend = _trend_signal(prices, trend_ma_window)
+
+    # 3. Mean-reversion signal
+    mr_sig, mr_mu, mr_sigma, z = _mean_reversion_signal(prices, mr_window, z_threshold)
+
+    # 4. Position finale selon régime
+    position = _combine_signals(regime, trend_sig, mr_sig)
+
+    # 5. Calcul equity curve (via utilitaire existant)
+    df = _compute_equity_curve_from_position(prices, position)
+
+    # 6. Colonnes de debug / analyse
+    df["regime"] = regime
+    df["vol_short"] = vol_short
+    df["vol_long"] = vol_long
+    df["ma_trend"] = ma_trend
+    df["mr_mu"] = mr_mu
+    df["mr_sigma"] = mr_sigma
+    df["zscore"] = z
+    df["trend_signal"] = trend_sig
+    df["mr_signal"] = mr_sig
+
+    return df

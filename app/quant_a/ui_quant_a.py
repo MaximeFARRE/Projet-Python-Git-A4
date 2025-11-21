@@ -173,22 +173,34 @@ def _build_comparison_messages(
 
 def render_quant_a_page():
     # ---------- 2.1. TITRE & INTRO ----------
-    st.title("Quant A – Analyse univariée du CAC 40")
+    st.title("Quant A – Backtest univarié du CAC 40")
 
     st.markdown(
         """
-        Ce module analyse **exclusivement le CAC 40** à partir de données Yahoo Finance.
-        
-        Objectifs :
-        - Configurer la **périodicité** des données (journalier, hebdomadaire, mensuel),
-        - Choisir une **stratégie** (Buy & Hold ou Crossover de moyennes mobiles),
-        - (NOUVEAU) **Optimiser automatiquement** les paramètres de moyennes mobiles sur la période,
-        - Comparer la **stratégie** au **Buy & Hold sur l’indice** :
-            - rendement,
-            - volatilité,
-            - Sharpe,
-            - max drawdown.
+        Ce module sert de moteur d'analyse pour le **Compte A** : il backteste des
+        stratégies systématiques sur le **CAC 40** à partir de données Yahoo Finance.
+
+        Fonctions principales :
+
+        - Sélection de la **période** et de la **périodicité** (journalier / hebdomadaire / mensuel),
+        - Choix de la **stratégie** :
+          - Buy & Hold,
+          - Crossover de moyennes mobiles,
+          - Regime Switching (Trend + Mean-Reversion),
+        - **Optimisation automatique** de certains paramètres (moyennes mobiles, régime),
+        - Visualisation :
+          - courbe de prix, équity, drawdown,
+          - régimes de volatilité et signaux de trading,
+        - Analyse :
+          - métriques de performance (Sharpe, volatilité, drawdown…),
+          - métriques de trading (nombre de trades, win rate, longs vs shorts),
+          - historique détaillé des trades.
         """
+    )
+
+    st.caption(
+        "Les résultats et signaux produits ici sont réutilisables par le Compte B "
+        "pour la construction d'un portefeuille multi-stratégies."
     )
 
     # ---------- 2.2. CONTRÔLES DONNÉES (SIDEBAR) ----------

@@ -17,6 +17,10 @@ from .strategies import (
 )
 
 from .metrics import compute_all_metrics, compute_trade_metrics
+from .optimizers import (
+    optimize_moving_average_params,
+    optimize_regime_switching,
+)
 
 
 def _get_periods_per_year(interval: str) -> int:
@@ -33,68 +37,7 @@ def _get_periods_per_year(interval: str) -> int:
     return 252
 
 
-def _optimize_moving_average_params(
-    prices: pd.Series,
-    periods_per_year: int,
-):
-    """
-    Recherche des paramètres (short_window, long_window) pour la stratégie
-    Moving Average Crossover maximisant le rendement total sur la période.
 
-    On fait un petit grid search raisonnable pour ne pas exploser le temps de calcul.
-    """
-    prices = prices.dropna()
-    if prices.empty:
-        return None
-
-    best_score = -float("inf")
-    best_short = None
-    best_long = None
-    best_metrics = None
-
-    # Grille simple : short entre 5 et 60, long entre 50 et 250
-    # (on reste raisonnable pour ne pas faire un truc trop lent)
-    for short_window in range(5, 61, 5):
-        for long_window in range(50, 251, 5):
-            if short_window >= long_window:
-                continue
-
-            try:
-                strat_df = moving_average_crossover(
-                    prices,
-                    short_window=short_window,
-                    long_window=long_window,
-                )
-            except Exception:
-                continue
-
-            metrics = compute_all_metrics(
-                equity_curve=strat_df["equity_curve"],
-                returns=strat_df["strategy_returns"],
-                risk_free_rate=0.0,
-                periods_per_year=periods_per_year,
-            )
-
-            score = metrics.get("total_return", float("nan"))
-            if pd.isna(score):
-                continue
-
-            if score > best_score:
-                best_score = score
-                best_short = short_window
-                best_long = long_window
-                best_metrics = metrics
-
-    if best_short is None or best_long is None:
-        return None
-
-    return {
-        "short_window": best_short,
-        "long_window": best_long,
-        "metrics": best_metrics,
-    }
-
-def _optimize_regime_switching(prices, periods_per_year):
     """
     Optimise automatiquement les paramètres du modèle regime switching
     en testant un ensemble réduit de valeurs.
@@ -352,7 +295,7 @@ def render_quant_a_page():
         # Bouton d'optimisation
         if st.button("🔍 Optimiser les moyennes mobiles sur la période"):
             with st.spinner("Recherche des meilleurs paramètres de moyennes mobiles..."):
-                result = _optimize_moving_average_params(prices, periods_per_year)
+                result = optimize_moving_average_params(prices, periods_per_year)
 
             if result is None:
                 st.error("Impossible de trouver des paramètres optimaux (données insuffisantes ?).")
@@ -442,7 +385,7 @@ def render_quant_a_page():
         # ----- exécution de l’optimisation -----
         if st.session_state.optimize_regime:
             with st.spinner("Optimisation en cours..."):
-                result = _optimize_regime_switching(prices, periods_per_year)
+                result = optimize_regime_switching(prices, periods_per_year)
 
             st.session_state.optimize_regime = False  # évite les reruns infinis
 

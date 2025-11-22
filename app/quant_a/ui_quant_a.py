@@ -26,6 +26,10 @@ from .optimizers import (
 def _get_periods_per_year(interval: str) -> int:
     """
     Renvoie le nombre de périodes par an en fonction de l'intervalle Yahoo.
+    Approximations pour l'intraday :
+    - 5m  : ~78 barres par jour * 252 jours ≈ 19 656
+    - 15m : ~26 barres par jour * 252 jours ≈ 6 552
+    - 60m : ~6.5 barres par jour * 252 jours ≈ 1 638
     """
     if interval == "1d":
         return 252
@@ -33,8 +37,15 @@ def _get_periods_per_year(interval: str) -> int:
         return 52
     if interval == "1mo":
         return 12
+    if interval == "5m":
+        return 19656
+    if interval == "15m":
+        return 6552
+    if interval == "60m":
+        return 1638
     # fallback
     return 252
+
 
 
 
@@ -207,12 +218,16 @@ def render_quant_a_page():
     with st.sidebar:
         st.header("Paramètres des données (CAC 40)")
 
+
         period_choice = st.selectbox(
             "Périodicité des données",
             options=[
                 "Journalier (1d)",
                 "Hebdomadaire (1wk)",
                 "Mensuel (1mo)",
+                "Intraday 5 minutes (5m)",
+                "Intraday 15 minutes (15m)",
+                "Intraday 1 heure (60m)",
             ],
             index=0,
         )
@@ -221,9 +236,13 @@ def render_quant_a_page():
             "Journalier (1d)": "1d",
             "Hebdomadaire (1wk)": "1wk",
             "Mensuel (1mo)": "1mo",
+            "Intraday 5 minutes (5m)": "5m",
+            "Intraday 15 minutes (15m)": "15m",
+            "Intraday 1 heure (60m)": "60m",
         }
         interval = interval_map[period_choice]
         periods_per_year = _get_periods_per_year(interval)
+
 
         today = dt.date.today()
         default_start = today - dt.timedelta(days=365 * 5)

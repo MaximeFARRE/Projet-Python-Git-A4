@@ -6,8 +6,8 @@ Prix d'ouverture : 7881.10
 Prix de clôture : 7982.65
 Rendement du jour : 0.02 %
 
-Volatilité annualisée (90 jours) : 12.12 %
-Max drawdown (90 jours) : -3.74 %
+Volatilité annualisée (90 jours) : 0.22 %
+Max drawdown (90 jours) : 0.00 %
 
 Source des données : Yahoo Finance via yfinance
 Generé automatiquement par daily_report.py

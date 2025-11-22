@@ -238,12 +238,61 @@ def render_quant_a_page():
             st.stop()
 
     # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
-    with st.spinner("Chargement des données du CAC 40..."):
-        df = load_cac40_history(
-            start=start_date.strftime("%Y-%m-%d"),
-            end=end_date.strftime("%Y-%m-%d"),
-            interval=interval,
-        )
+        # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
+    # Mise en cache des données pour un rafraîchissement automatique toutes les 5 minutes
+
+    now = dt.datetime.now()
+
+    # On garde les dates sous forme de chaînes pour les comparer facilement
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+
+    # Initialisation des clés de cache dans la session si besoin
+    if "cached_df" not in st.session_state:
+        st.session_state.cached_df = None
+    if "last_load_time" not in st.session_state:
+        st.session_state.last_load_time = None
+    if "last_interval" not in st.session_state:
+        st.session_state.last_interval = None
+    if "last_start_date" not in st.session_state:
+        st.session_state.last_start_date = None
+    if "last_end_date" not in st.session_state:
+        st.session_state.last_end_date = None
+
+    need_reload = False
+
+    # 1) Si pas de données en cache, on doit charger
+    if st.session_state.cached_df is None or st.session_state.cached_df.empty:
+        need_reload = True
+    else:
+        # 2) Si l'utilisateur change la période ou l'intervalle, on recharge
+        if (
+            st.session_state.last_interval != interval
+            or st.session_state.last_start_date != start_str
+            or st.session_state.last_end_date != end_str
+        ):
+            need_reload = True
+        else:
+            # 3) Sinon, on regarde si plus de 5 minutes se sont écoulées
+            last_time = st.session_state.last_load_time
+            if last_time is None or (now - last_time).total_seconds() > 300:
+                need_reload = True
+
+    if need_reload:
+        with st.spinner("Chargement des données du CAC 40..."):
+            df = load_cac40_history(
+                start=start_str,
+                end=end_str,
+                interval=interval,
+            )
+
+        st.session_state.cached_df = df
+        st.session_state.last_load_time = now
+        st.session_state.last_interval = interval
+        st.session_state.last_start_date = start_str
+        st.session_state.last_end_date = end_str
+    else:
+        df = st.session_state.cached_df
 
     if df is None or df.empty:
         st.warning("Aucune donnée disponible pour le CAC 40 sur cette période.")
@@ -253,8 +302,6 @@ def render_quant_a_page():
     prices = prices.sort_index()
     prices.name = "CAC 40 (Close)"
 
-    st.subheader("Prix du CAC 40")
-    st.line_chart(prices)
 
     # ---------- 2.4. CONTRÔLES STRATÉGIE + BOUTON D'OPTIMISATION ----------
     st.subheader("Paramètres de stratégie")

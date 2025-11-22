@@ -1,12 +1,23 @@
+##############################################
+# code pour executer manuellement ce script #
+# python -m app.quant_a.daily_report      #
+##############################################
+
+
+
+
+
+
 import os
 import datetime as dt
 from pathlib import Path
 
 import pandas as pd
 
-from .data_loader import load_cac40_history
-from .strategies import buy_and_hold
-from .metrics import compute_all_metrics
+from app.quant_a.data_loader import load_cac40_history
+from app.quant_a.strategies import buy_and_hold
+from app.quant_a.metrics import compute_all_metrics
+
 
 
 def generate_daily_report():
@@ -34,17 +45,20 @@ def generate_daily_report():
 
     df = df.sort_index()
 
-    # Récupération infos du jour
+        # Récupération infos du jour
     last_row = df.iloc[-1]
-    open_price = last_row["Open"]
-    close_price = last_row["Close"]
+
+    # On force en float au cas où yfinance renvoie des objets pandas un peu exotiques
+    open_price = float(last_row["Open"])
+    close_price = float(last_row["Close"])
 
     # Calcul du rendement journalier
     if len(df) > 1:
-        prev_close = df["Close"].iloc[-2]
+        prev_close = float(df["Close"].iloc[-2])
         daily_return = (close_price / prev_close - 1) * 100
     else:
         daily_return = float("nan")
+
 
     # Calcul performance (via Buy & Hold)
     prices = df["Close"]

@@ -110,3 +110,82 @@ def compute_report_stats(df: pd.DataFrame, vol_window_days: int = 90) -> dict:
         "vol_annual_pct": vol_annual,
         "max_drawdown_pct": max_drawdown,
     }
+
+
+def generate_daily_report():
+    """
+    Génère un rapport quotidien sur le CAC 40.
+
+    - Données daily sur les ~365 derniers jours
+    - Infos du jour (open, close, rendement journalier)
+    - Infos sur la semaine, le mois et l'année en cours
+    - Volatilité annualisée et max drawdown sur les 90 derniers jours
+    - Heure d'export du rapport
+    """
+
+    # Préparation des dates (1 an en arrière pour avoir YTD + mois + semaine)
+    today = dt.date.today()
+    start_date = today - dt.timedelta(days=365)
+
+    # Charger les données daily du CAC 40
+    df = load_cac40_history(
+        start=start_date.strftime("%Y-%m-%d"),
+        end=today.strftime("%Y-%m-%d"),
+        interval="1d",
+    )
+
+    if df is None or df.empty:
+        raise ValueError("Aucune donnée téléchargée pour le CAC 40.")
+
+    # Calcul des stats avec la fonction générique (réutilisable par Quant B)
+    stats = compute_report_stats(df, vol_window_days=90)
+
+    # Création dossier reports/
+    reports_dir = Path("reports")
+    reports_dir.mkdir(exist_ok=True)
+
+    # Nom du fichier basé sur la date de marché (as_of_date)
+    as_of_date = stats["as_of_date"]
+    filename = reports_dir / f"daily_report_{as_of_date.isoformat()}.txt"
+
+    # Heure d'export (heure locale de génération du rapport)
+    export_time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def fmt_pct(x: float) -> str:
+        return "N/A" if pd.isna(x) else f"{x:.2f} %"
+
+    # Contenu du rapport
+    contenu = (
+        f"===== RAPPORT QUOTIDIEN DU {as_of_date.isoformat()} =====\n"
+        f"Heure de génération du rapport : {export_time}\n"
+        f"\n"
+        f"Actif : CAC 40 (^FCHI)\n"
+        f"\n"
+        f"--- JOURNÉE ---\n"
+        f"Prix d'ouverture : {stats['open_price']:.2f}\n"
+        f"Prix de clôture : {stats['close_price']:.2f}\n"
+        f"Rendement du jour : {fmt_pct(stats['daily_return_pct'])}\n"
+        f"\n"
+        f"--- PÉRIODES EN COURS ---\n"
+        f"Performance semaine en cours : {fmt_pct(stats['week_return_pct'])}\n"
+        f"Performance mois en cours   : {fmt_pct(stats['month_return_pct'])}\n"
+        f"Performance YTD (année en cours) : {fmt_pct(stats['ytd_return_pct'])}\n"
+        f"\n"
+        f"--- RISQUE (fenêtre 90 jours) ---\n"
+        f"Volatilité annualisée : {fmt_pct(stats['vol_annual_pct'])}\n"
+        f"Max drawdown          : {fmt_pct(stats['max_drawdown_pct'])}\n"
+        f"\n"
+        f"Source des données : Yahoo Finance via yfinance\n"
+        f"Généré automatiquement par app.quant_a.daily_report\n"
+    )
+
+    # Sauvegarde fichier
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(contenu)
+
+    return filename
+
+
+if __name__ == "__main__":
+    path = generate_daily_report()
+    print(f"Rapport généré : {path}")

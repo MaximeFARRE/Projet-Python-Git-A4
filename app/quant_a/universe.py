@@ -49,4 +49,16 @@ def get_asset_classes() -> List[str]:
     return list(ASSET_UNIVERSE.keys())
 
 
+def get_assets_by_class(asset_class: str) -> List[Asset]:
+    """
+    Renvoie la liste des actifs pour une classe donnée.
+    """
+    return ASSET_UNIVERSE.get(asset_class, [])
 
+
+def get_default_asset() -> Asset:
+    """
+    Actif par défaut (peut être utilisé pour initialiser l'UI).
+    Par défaut : CAC 40.
+    """
+    return ASSET_UNIVERSE["Indices"][0]

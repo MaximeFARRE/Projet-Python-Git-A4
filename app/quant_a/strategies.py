@@ -352,4 +352,3 @@ def extract_trades_from_position(
     trades_df["trade_return_pct"] = trades_df["trade_return"] * 100.0
 
     return trades_df
-# =====================================================================

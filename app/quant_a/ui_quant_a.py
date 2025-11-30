@@ -7,7 +7,8 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
-from .data_loader import load_cac40_history
+from .data_loader import load_history, load_cac40_history
+from .universe import get_asset_classes, get_assets_by_class, get_default_asset
 
 from .strategies import (
     buy_and_hold,
@@ -216,8 +217,59 @@ def render_quant_a_page():
 
     # ---------- 2.2. CONTRÔLES DONNÉES (SIDEBAR) ----------
     with st.sidebar:
-        st.header("Paramètres des données (CAC 40)")
+        # ---------- BLOC 2.x : SÉLECTION DE L'ACTIF ----------
+        st.header("Actif analysé")
 
+        asset_classes = get_asset_classes()
+        default_asset = get_default_asset()
+
+        # Classe d'actif (Indices, Forex, Actions, Matières premières...)
+        try:
+            default_class_index = asset_classes.index(default_asset.asset_class)
+        except ValueError:
+            default_class_index = 0
+
+        selected_class = st.selectbox(
+            "Classe d'actif",
+            options=asset_classes,
+            index=default_class_index,
+        )
+
+        # Liste des actifs pour cette classe
+        assets_in_class = get_assets_by_class(selected_class)
+        asset_names = [a.name for a in assets_in_class]
+
+        if not assets_in_class:
+            st.error("Aucun actif défini pour cette classe.")
+            st.stop()
+
+        # Actif précis
+        # On choisit par défaut le premier actif de la classe sélectionnée
+        selected_asset_index = 0
+        # Si la classe par défaut contient l'actif par défaut, on essaie de le positionner
+        for i, a in enumerate(assets_in_class):
+            if a.ticker == default_asset.ticker:
+                selected_asset_index = i
+                break
+
+        selected_asset_name = st.selectbox(
+            "Actif",
+            options=asset_names,
+            index=selected_asset_index,
+        )
+
+        # On récupère l'objet Asset correspondant
+        selected_asset = assets_in_class[asset_names.index(selected_asset_name)]
+
+        st.caption(
+            f"Actif sélectionné : **{selected_asset.name}** "
+            f"(ticker Yahoo : `{selected_asset.ticker}`)"
+        )
+
+        st.markdown("---")
+
+        # ---------- BLOC 2.x : PARAMÈTRES DES DONNÉES ----------
+        st.header("Paramètres des données")
 
         period_choice = st.selectbox(
             "Périodicité des données",
@@ -243,18 +295,19 @@ def render_quant_a_page():
         interval = interval_map[period_choice]
         periods_per_year = _get_periods_per_year(interval)
 
-
         today = dt.date.today()
         default_start = today - dt.timedelta(days=365 * 5)
 
         start_date, end_date = st.date_input(
-            "Période d'étude (début / fin)",
+            "Période d'étude (backtest)",
             value=(default_start, today),
         )
 
         if start_date >= end_date:
             st.error("La date de début doit être strictement inférieure à la date de fin.")
             st.stop()
+
+        st.markdown("---")
 
     # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
         # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
@@ -456,7 +509,7 @@ def render_quant_a_page():
         if "optimize_regime" not in st.session_state:
             st.session_state.optimize_regime = False
 
-        if st.button("🔍 Optimiser automatiquement les paramètres", key="optimize_regime_button"):
+        if st.button("Optimiser automatiquement les paramètres", key="optimize_regime_button"):
             st.session_state.optimize_regime = True
 
 

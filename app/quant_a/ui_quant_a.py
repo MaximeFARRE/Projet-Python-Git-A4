@@ -424,38 +424,59 @@ def render_quant_a_page():
         if df_display.empty:
             df_display = df.copy()
 
-    # Affichage en chandeliers si on a OHLC, sinon fallback ligne
-    has_ohlc = {"Open", "High", "Low", "Close"}.issubset(df_display.columns)
+    # ---------- Construction des séries OHLC pour l'affichage ----------
 
-    if has_ohlc:
-        fig = go.Figure(
-            data=[
-                go.Candlestick(
-                    x=df_display.index,
-                    open=df_display["Open"],
-                    high=df_display["High"],
-                    low=df_display["Low"],
-                    close=df_display["Close"],
-                    name="Cours",
-                )
-            ]
-        )
+    # On essaye d'abord d'utiliser les colonnes standard
+    cols = {str(c).lower(): c for c in df_display.columns}  # ex: {"open": "Open", ...}
 
-        fig.update_layout(
-            title=f"Prix de {selected_asset.name} – vue globale",
-            xaxis_title="Date",
-            yaxis_title="Prix",
-            height=500,
-            margin=dict(l=40, r=20, t=50, b=40),
-        )
+    def get_col_or_close(key: str, close_series: pd.Series) -> pd.Series:
+        """Retourne la colonne correspondante si elle existe, sinon la série de clôture."""
+        col_name = cols.get(key.lower())
+        if col_name is not None:
+            return df_display[col_name].astype(float)
+        return close_series
 
-        st.plotly_chart(fig, use_container_width=True)
+    # Série de clôture principale
+    if "close" in cols:
+        closes_display = df_display[cols["close"]].astype(float)
+    elif "adj close" in cols:
+        closes_display = df_display[cols["adj close"]].astype(float)
     else:
-        st.line_chart(prices)
-        st.info(
-            "Les données OHLC complètes (Open/High/Low/Close) ne sont pas disponibles "
-            f"pour {selected_asset.name} à cet intervalle. Affichage en ligne simple."
-        )
+        # fallback : première colonne numérique
+        numeric_cols = df_display.select_dtypes(include="number")
+        if numeric_cols.shape[1] == 0:
+            st.error("Impossible de trouver une série numérique pour afficher le prix.")
+            return
+        closes_display = numeric_cols.iloc[:, 0].astype(float)
+
+    opens_display = get_col_or_close("open", closes_display)
+    highs_display = get_col_or_close("high", closes_display)
+    lows_display = get_col_or_close("low", closes_display)
+
+    # ---------- Affichage en chandeliers ----------
+
+    fig = go.Figure(
+        data=[
+            go.Candlestick(
+                x=df_display.index,
+                open=opens_display,
+                high=highs_display,
+                low=lows_display,
+                close=closes_display,
+                name="Cours",
+            )
+        ]
+    )
+
+    fig.update_layout(
+        title=f"Prix de {selected_asset.name} – vue globale",
+        xaxis_title="Date",
+        yaxis_title="Prix",
+        height=500,
+        margin=dict(l=40, r=20, t=50, b=40),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
     # ---------- 2.4. CONTRÔLES STRATÉGIE + BOUTON D'OPTIMISATION ----------
     st.subheader("Paramètres de stratégie")

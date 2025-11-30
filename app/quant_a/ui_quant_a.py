@@ -22,6 +22,7 @@ from .optimizers import (
     optimize_moving_average_params,
     optimize_regime_switching,
 )
+import plotly.graph_objects as go
 
 
 def _get_periods_per_year(interval: str) -> int:
@@ -310,7 +311,6 @@ def render_quant_a_page():
         st.markdown("---")
 
     # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
-        # ---------- 2.3. CHARGEMENT DES DONNÉES ----------
     # Mise en cache des données pour un rafraîchissement automatique toutes les 5 minutes
 
     now = dt.datetime.now()
@@ -318,6 +318,7 @@ def render_quant_a_page():
     # On garde les dates sous forme de chaînes pour les comparer facilement
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
+    current_ticker = selected_asset.ticker
 
     # Initialisation des clés de cache dans la session si besoin
     if "cached_df" not in st.session_state:
@@ -330,6 +331,8 @@ def render_quant_a_page():
         st.session_state.last_start_date = None
     if "last_end_date" not in st.session_state:
         st.session_state.last_end_date = None
+    if "last_ticker" not in st.session_state:
+        st.session_state.last_ticker = None
 
     need_reload = False
 
@@ -337,11 +340,12 @@ def render_quant_a_page():
     if st.session_state.cached_df is None or st.session_state.cached_df.empty:
         need_reload = True
     else:
-        # 2) Si l'utilisateur change la période ou l'intervalle, on recharge
+        # 2) Si l'utilisateur change la période, l'intervalle ou le ticker, on recharge
         if (
             st.session_state.last_interval != interval
             or st.session_state.last_start_date != start_str
             or st.session_state.last_end_date != end_str
+            or st.session_state.last_ticker != current_ticker
         ):
             need_reload = True
         else:
@@ -351,8 +355,9 @@ def render_quant_a_page():
                 need_reload = True
 
     if need_reload:
-        with st.spinner("Chargement des données du CAC 40..."):
-            df = load_cac40_history(
+        with st.spinner(f"Chargement des données pour {selected_asset.name} ({current_ticker})..."):
+            df = load_history(
+                ticker=current_ticker,
                 start=start_str,
                 end=end_str,
                 interval=interval,
@@ -363,17 +368,94 @@ def render_quant_a_page():
         st.session_state.last_interval = interval
         st.session_state.last_start_date = start_str
         st.session_state.last_end_date = end_str
+        st.session_state.last_ticker = current_ticker
     else:
         df = st.session_state.cached_df
 
     if df is None or df.empty:
-        st.warning("Aucune donnée disponible pour le CAC 40 sur cette période.")
+        st.warning(f"Aucune donnée disponible pour {selected_asset.name} sur cette période.")
         return
 
-    prices = df["Close"].astype(float).copy()
-    prices = prices.sort_index()
-    prices.name = "CAC 40 (Close)"
+    # On essaye de récupérer une série de clôture propre
+    if "Close" in df.columns:
+        prices = df["Close"].astype(float).copy()
+    elif "Adj Close" in df.columns:
+        prices = df["Adj Close"].astype(float).copy()
+    else:
+        # fallback : première colonne numérique
+        numeric_cols = df.select_dtypes(include="number")
+        if numeric_cols.shape[1] == 0:
+            st.error("Impossible de trouver une série de prix dans les données téléchargées.")
+            return
+        prices = numeric_cols.iloc[:, 0].astype(float).copy()
 
+    prices = prices.sort_index()
+    prices.name = f"{selected_asset.name} (Close)"
+
+    # ---------- 2.3.2 EXPLORATEUR DE PRIX – VUE GLOBALE ----------
+
+    st.subheader("Explorateur de prix – vue globale")
+
+    # Choix de l'horizon d'affichage (indépendant du backtest)
+    display_horizon = st.radio(
+        "Horizon d'affichage",
+        options=["1M", "3M", "6M", "1Y", "3Y", "MAX"],
+        index=5,  # MAX par défaut
+        horizontal=True,
+    )
+
+    # On construit un sous-DataFrame pour l'affichage, basé sur df complet
+    last_date = df.index[-1].date()
+
+    if display_horizon == "MAX":
+        df_display = df.copy()
+    else:
+        horizon_days_map = {
+            "1M": 30,
+            "3M": 90,
+            "6M": 180,
+            "1Y": 365,
+            "3Y": 365 * 3,
+        }
+        nb_days = horizon_days_map[display_horizon]
+        cutoff_date = last_date - dt.timedelta(days=nb_days)
+        mask = df.index.date >= cutoff_date
+        df_display = df[mask].copy()
+        if df_display.empty:
+            df_display = df.copy()
+
+    # Affichage en chandeliers si on a OHLC, sinon fallback ligne
+    has_ohlc = {"Open", "High", "Low", "Close"}.issubset(df_display.columns)
+
+    if has_ohlc:
+        fig = go.Figure(
+            data=[
+                go.Candlestick(
+                    x=df_display.index,
+                    open=df_display["Open"],
+                    high=df_display["High"],
+                    low=df_display["Low"],
+                    close=df_display["Close"],
+                    name="Cours",
+                )
+            ]
+        )
+
+        fig.update_layout(
+            title=f"Prix de {selected_asset.name} – vue globale",
+            xaxis_title="Date",
+            yaxis_title="Prix",
+            height=500,
+            margin=dict(l=40, r=20, t=50, b=40),
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.line_chart(prices)
+        st.info(
+            "Les données OHLC complètes (Open/High/Low/Close) ne sont pas disponibles "
+            f"pour {selected_asset.name} à cet intervalle. Affichage en ligne simple."
+        )
 
     # ---------- 2.4. CONTRÔLES STRATÉGIE + BOUTON D'OPTIMISATION ----------
     st.subheader("Paramètres de stratégie")

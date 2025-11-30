@@ -1,52 +1,49 @@
-# app/quant_a/data_loader.py
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
 from typing import Optional
 
+# Ticker historique pour le CAC 40 (compatibilité avec l'ancienne API)
 CAC40_TICKER = "^FCHI"
 
 
-def load_cac40_history(
+def load_history(
+    ticker: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
     interval: str = "1d",
     intraday_days: int = 5,
 ) -> pd.DataFrame:
     """
-    Charge l'historique du CAC 40 via Yahoo Finance.
+    Charge l'historique d'un actif générique via Yahoo Finance.
 
-    - Pour les intervalles journaliers / hebdo / mensuels ("1d", "1wk", "1mo"),
-      on utilise start / end comme avant.
-    - Pour les intervalles intraday ("1m", "2m", "5m", ...),
-      Yahoo impose d'utiliser un paramètre `period` plutôt que start/end.
-      On récupère alors les `intraday_days` derniers jours.
+    - ticker : symbole Yahoo Finance (ex: "^FCHI", "AAPL", "EURUSD=X").
+    - start / end : dates au format "YYYY-MM-DD" (pour daily/weekly/monthly).
+    - interval : "1d", "1wk", "1mo" pour les données de clôture, ou intraday ("5m", "15m", "60m"...).
+    - intraday_days : pour les intervalles intraday, on utilise 'period=X d' plutôt que start/end.
 
     Remarque :
-    - Le "rafraîchissement toutes les 5 minutes" ne dépend pas de cette fonction :
-      c'est l'application (Streamlit) qui doit rappeler cette fonction
-      au moins toutes les 5 minutes pour obtenir des données mises à jour.
+    - Pour les intervalles intraday, Yahoo limite la profondeur historique accessible.
     """
 
     if end is None:
         end = datetime.today().strftime("%Y-%m-%d")
 
-    # Intervalles intraday supportés par yfinance
     intraday_intervals = {"1m", "2m", "5m", "15m", "30m", "60m", "90m"}
 
     if interval in intraday_intervals:
         # Pour l'intraday, on doit utiliser period=...
         data = yf.download(
-            CAC40_TICKER,
+            ticker,
             period=f"{intraday_days}d",
             interval=interval,
             progress=False,
             auto_adjust=False,
         )
     else:
-        # Comportement historique pour 1d / 1wk / 1mo
+        # Comportement classique pour 1d / 1wk / 1mo
         data = yf.download(
-            CAC40_TICKER,
+            ticker,
             start=start,
             end=end,
             interval=interval,
@@ -63,9 +60,31 @@ def load_cac40_history(
     return data
 
 
+def load_cac40_history(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    interval: str = "1d",
+    intraday_days: int = 5,
+) -> pd.DataFrame:
+    """
+    Wrapper historique pour le CAC 40, conservé pour compatibilité.
+    Utilise désormais la fonction générique load_history().
+    """
+    return load_history(
+        ticker=CAC40_TICKER,
+        start=start,
+        end=end,
+        interval=interval,
+        intraday_days=intraday_days,
+    )
+
 
 def get_last_cac40_close() -> float:
+    """
+    Renvoie le dernier cours de clôture du CAC 40.
+    Utilise load_cac40_history() avec interval '1d'.
+    """
     data = load_cac40_history(interval="1d")
     if data.empty:
-        raise ValueError("Aucune donnée retournée pour le CAC40.")
+        raise ValueError("Aucune donnée retournée pour le CAC 40.")
     return float(data["Close"].iloc[-1])

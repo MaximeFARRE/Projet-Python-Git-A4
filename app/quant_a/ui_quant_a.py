@@ -457,7 +457,15 @@ def render_quant_a_page():
             yaxis_title="Prix",
             height=500,
             margin=dict(l=40, r=20, t=50, b=40),
+            xaxis=dict(
+                rangebreaks=[
+                    # Masque les jours sans cotation entre samedi et lundi
+                    dict(bounds=["sat", "mon"]),
+                ]
+            ),
+            xaxis_rangeslider_visible=False,  # optionnel : enlève le range slider Plotly
         )
+
 
         st.plotly_chart(fig, use_container_width=True)
     else:

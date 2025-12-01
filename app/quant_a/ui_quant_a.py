@@ -455,17 +455,36 @@ def render_quant_a_page():
 
     # ---------- Affichage en chandeliers ----------
 
-    fig = go.Figure(
-        data=[
-            go.Candlestick(
-                x=df_display.index,
-                open=opens_display,
-                high=highs_display,
-                low=lows_display,
-                close=closes_display,
-                name="Cours",
-            )
-        ]
+        # Figure chandeliers + courbe de clôture
+    fig = go.Figure()
+
+    # Chandeliers
+    fig.add_trace(
+        go.Candlestick(
+            x=df_display.index,
+            open=opens_display,
+            high=highs_display,
+            low=lows_display,
+            close=closes_display,
+            name="Bougies",
+        )
+    )
+
+    # On épaissit un peu les bougies pour qu'elles soient plus visibles
+    fig.update_traces(
+        increasing_line_width=2,
+        decreasing_line_width=2,
+        selector=dict(type="candlestick"),
+    )
+
+    # Courbe de clôture par-dessus (pour mieux voir la tendance)
+    fig.add_trace(
+        go.Scatter(
+            x=df_display.index,
+            y=closes_display,
+            mode="lines",
+            name="Clôture",
+        )
     )
 
     fig.update_layout(
@@ -477,6 +496,7 @@ def render_quant_a_page():
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
 
     # ---------- 2.4. CONTRÔLES STRATÉGIE + BOUTON D'OPTIMISATION ----------
     st.subheader("Paramètres de stratégie")

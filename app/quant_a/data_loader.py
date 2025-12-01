@@ -51,13 +51,38 @@ def load_history(
             auto_adjust=False,
         )
 
+    if interval in intraday_intervals:
+        data = yf.download(
+            ticker,
+            period=f"{intraday_days}d",
+            interval=interval,
+            progress=False,
+            auto_adjust=False,
+        )
+    else:
+        data = yf.download(
+            ticker,
+            start=start,
+            end=end,
+            interval=interval,
+            progress=False,
+            auto_adjust=False,
+        )
+
     if data.empty:
         return data
+
+    # Certaines versions de yfinance renvoient un MultiIndex de colonnes :
+    # par ex. ('Open', '^FCHI'), ('High', '^FCHI'), ...
+    # On aplatit en ne gardant que le premier niveau : "Open", "High", "Low", "Close", ...
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = [col[0] for col in data.columns]
 
     data.index = pd.to_datetime(data.index)
     data = data.sort_index()
 
     return data
+
 
 
 def load_cac40_history(

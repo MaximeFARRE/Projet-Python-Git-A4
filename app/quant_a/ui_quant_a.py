@@ -3,6 +3,7 @@
 # ===================== 1. IMPORTS & FONCTIONS UTILITAIRES =====================
 
 import datetime as dt
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -857,3 +858,54 @@ def render_quant_a_page():
     # ---------- 2.9. APERÇU DES DONNÉES BRUTES ----------
     with st.expander("Voir un extrait des données brutes"):
         st.dataframe(df.tail(10))
+
+    # ---------- 2.10. RAPPORTS QUOTIDIENS GÉNÉRÉS ----------
+
+    st.subheader("Rapports quotidiens générés")
+
+    reports_dir = Path("reports")
+
+    if not reports_dir.exists():
+        st.info(
+            "Aucun dossier de rapports trouvé. "
+            "Lancez le script `daily_report.py` pour générer les premiers rapports."
+        )
+        return
+
+    report_files = sorted(
+        reports_dir.glob("daily_report_*.txt"),
+        reverse=True,  # fichiers les plus récents en premier
+    )
+
+    if not report_files:
+        st.info(
+            "Aucun rapport quotidien n'est encore disponible. "
+            "Exécutez `python -m app.quant_a.daily_report` ou laissez le cron tourner."
+        )
+        return
+
+    # On construit une liste de labels lisibles pour la sélection
+    options_labels = [f.name.replace("daily_report_", "").replace(".txt", "") for f in report_files]
+
+    selected_label = st.selectbox(
+        "Choisissez un rapport (date de marché)",
+        options=options_labels,
+        index=0,  # rapport le plus récent par défaut
+    )
+
+    # Fichier correspondant au label choisi
+    selected_file = report_files[options_labels.index(selected_label)]
+
+    with selected_file.open("r", encoding="utf-8") as f:
+        content = f.read()
+
+    st.markdown(f"**Rapport sélectionné :** `{selected_file.name}`")
+    st.code(content, language="text")
+
+    # Option de téléchargement direct
+    st.download_button(
+        label="📥 Télécharger ce rapport",
+        data=content,
+        file_name=selected_file.name,
+        mime="text/plain",
+    )

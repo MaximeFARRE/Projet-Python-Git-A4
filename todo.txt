@@ -1,0 +1,53 @@
+✅ Priorité 1 — Stabiliser (obligatoire)
+
+Nettoyer les duplications / code mort
+
+data_loader: supprimer double download 
+
+data_loader
+
+daily_report: supprimer bloc dupliqué après return 
+
+daily_report
+
+ui_quant_a: supprimer bloc d’optimisation fantôme 
+
+ui_quant_a
+
+Robustesse erreurs API
+
+si yfinance renvoie vide / erreur : message UI clair + pas de crash
+
+(ton code le gère déjà partiellement, mais on peut verrouiller)
+
+✅ Priorité 2 — Conformité au sujet (obligatoire)
+
+Graphique principal conforme
+Le prof demande : “le main chart montre prix brut + equity stratégie (2 courbes)”.
+Actuellement tu as :
+
+un explorateur bougies “prix”
+
+puis un line_chart “equity vs equity”
+➡️ Il faut un graphique unique (ou une section “Graphique principal”) qui affiche prix normalisé + equity stratégie sur la même figure (Plotly idéal).
+
+✅ Priorité 3 — Qualité pro (fortement recommandé)
+
+Ajout des coûts de transaction (simple)
+Même 0.01% par trade, ou spread fixe.
+➡️ Ça rend ton backtest plus crédible.
+
+Un petit export
+
+bouton “Télécharger trades.csv”
+
+bouton “Télécharger résultats (metrics.json ou csv)”
+
+✅ Priorité 4 — Daily report + cron (obligatoire projet global)
+
+Préparer le cron “propre”
+
+un script scripts/run_daily_report.sh (appel python + log)
+
+doc dans README (où mettre la ligne cron, comment tester)
+➡️ Le script existe, mais il faut la partie “cron config + doc”.

@@ -51,24 +51,6 @@ def load_history(
             auto_adjust=False,
         )
 
-    if interval in intraday_intervals:
-        data = yf.download(
-            ticker,
-            period=f"{intraday_days}d",
-            interval=interval,
-            progress=False,
-            auto_adjust=False,
-        )
-    else:
-        data = yf.download(
-            ticker,
-            start=start,
-            end=end,
-            interval=interval,
-            progress=False,
-            auto_adjust=False,
-        )
-
     if data.empty:
         return data
 

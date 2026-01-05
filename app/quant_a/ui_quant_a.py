@@ -229,6 +229,8 @@ def render_quant_a_page():
             "Intraday 1 heure (60m)": "60m",
         }
         interval = interval_map[period_choice]
+        
+
         periods_per_year = _get_periods_per_year(interval)
 
         today = dt.date.today()
@@ -291,12 +293,16 @@ def render_quant_a_page():
 
     if need_reload:
         with st.spinner(f"Chargement des données pour {selected_asset.name} ({current_ticker})..."):
-            df = load_history(
-                ticker=current_ticker,
-                start=start_str,
-                end=end_str,
-                interval=interval,
-            )
+            try:
+                df = load_history(
+                    ticker=current_ticker,
+                    start=start_str,
+                    end=end_str,
+                    interval=interval,
+                )
+            except Exception as e:
+                st.error(f"Impossible de charger les données : {e}")
+                st.stop()
 
         st.session_state.cached_df = df
         st.session_state.last_load_time = now
@@ -306,6 +312,7 @@ def render_quant_a_page():
         st.session_state.last_ticker = current_ticker
     else:
         df = st.session_state.cached_df
+
 
     if df is None or df.empty:
         st.warning(f"Aucune donnée disponible pour {selected_asset.name} sur cette période.")

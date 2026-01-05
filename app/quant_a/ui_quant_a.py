@@ -229,7 +229,10 @@ def render_quant_a_page():
             "Intraday 1 heure (60m)": "60m",
         }
         interval = interval_map[period_choice]
-        
+        if st.button("🔄 Recharger maintenant"):
+            # force le reload au prochain run
+            st.session_state.cached_df = None
+            st.session_state.last_load_time = None
 
         periods_per_year = _get_periods_per_year(interval)
 

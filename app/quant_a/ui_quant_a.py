@@ -3,6 +3,7 @@
 # ===================== 1. IMPORTS & FONCTIONS UTILITAIRES =====================
 
 import datetime as dt
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -47,72 +48,6 @@ def _get_periods_per_year(interval: str) -> int:
         return 1638
     # fallback
     return 252
-
-
-
-
-    """
-    Optimise automatiquement les paramètres du modèle regime switching
-    en testant un ensemble réduit de valeurs.
-    """
-
-    # Grilles raisonnables pour ne pas exploser le temps de calcul
-    vol_short_list = [10, 20, 30]
-    vol_long_list = [80, 120, 150]
-    alpha_list = [0.9, 1.0, 1.1]
-    trend_ma_list = [30, 50, 100]
-    mr_window_list = [15, 20, 30]
-    z_threshold_list = [0.8, 1.0, 1.2]
-
-    best_score = -float("inf")
-    best_params = None
-    best_metrics = None
-
-    for vs in vol_short_list:
-        for vl in vol_long_list:
-            if vl <= vs:
-                continue
-
-            for alpha in alpha_list:
-                for ma_trend in trend_ma_list:
-                    for mr_w in mr_window_list:
-                        for z_th in z_threshold_list:
-
-                            df = regime_switch_trend_meanrev(
-                                prices,
-                                vol_short_window=vs,
-                                vol_long_window=vl,
-                                alpha=alpha,
-                                trend_ma_window=ma_trend,
-                                mr_window=mr_w,
-                                z_threshold=z_th,
-                            )
-
-                            metrics = compute_all_metrics(
-                                df["equity_curve"],
-                                df["strategy_returns"],
-                                periods_per_year=periods_per_year,
-                            )
-
-                            score = metrics["total_return"]
-
-                            if pd.notna(score) and score > best_score:
-                                best_score = score
-                                best_params = (vs, vl, alpha, ma_trend, mr_w, z_th)
-                                best_metrics = metrics
-
-    if best_params is None:
-        return None
-
-    return {
-        "vol_short_window": best_params[0],
-        "vol_long_window": best_params[1],
-        "alpha": best_params[2],
-        "trend_ma_window": best_params[3],
-        "mr_window": best_params[4],
-        "z_threshold": best_params[5],
-        "metrics": best_metrics,
-    }
 
 
 def _build_comparison_messages(
@@ -294,6 +229,11 @@ def render_quant_a_page():
             "Intraday 1 heure (60m)": "60m",
         }
         interval = interval_map[period_choice]
+        if st.button("🔄 Recharger maintenant"):
+            # force le reload au prochain run
+            st.session_state.cached_df = None
+            st.session_state.last_load_time = None
+
         periods_per_year = _get_periods_per_year(interval)
 
         today = dt.date.today()
@@ -356,12 +296,16 @@ def render_quant_a_page():
 
     if need_reload:
         with st.spinner(f"Chargement des données pour {selected_asset.name} ({current_ticker})..."):
-            df = load_history(
-                ticker=current_ticker,
-                start=start_str,
-                end=end_str,
-                interval=interval,
-            )
+            try:
+                df = load_history(
+                    ticker=current_ticker,
+                    start=start_str,
+                    end=end_str,
+                    interval=interval,
+                )
+            except Exception as e:
+                st.error(f"Impossible de charger les données : {e}")
+                st.stop()
 
         st.session_state.cached_df = df
         st.session_state.last_load_time = now
@@ -371,6 +315,7 @@ def render_quant_a_page():
         st.session_state.last_ticker = current_ticker
     else:
         df = st.session_state.cached_df
+
 
     if df is None or df.empty:
         st.warning(f"Aucune donnée disponible pour {selected_asset.name} sur cette période.")
@@ -857,3 +802,54 @@ def render_quant_a_page():
     # ---------- 2.9. APERÇU DES DONNÉES BRUTES ----------
     with st.expander("Voir un extrait des données brutes"):
         st.dataframe(df.tail(10))
+
+    # ---------- 2.10. RAPPORTS QUOTIDIENS GÉNÉRÉS ----------
+
+    st.subheader("Rapports quotidiens générés")
+
+    reports_dir = Path("reports")
+
+    if not reports_dir.exists():
+        st.info(
+            "Aucun dossier de rapports trouvé. "
+            "Lancez le script `daily_report.py` pour générer les premiers rapports."
+        )
+        return
+
+    report_files = sorted(
+        reports_dir.glob("daily_report_*.txt"),
+        reverse=True,  # fichiers les plus récents en premier
+    )
+
+    if not report_files:
+        st.info(
+            "Aucun rapport quotidien n'est encore disponible. "
+            "Exécutez `python -m app.quant_a.daily_report` ou laissez le cron tourner."
+        )
+        return
+
+    # On construit une liste de labels lisibles pour la sélection
+    options_labels = [f.name.replace("daily_report_", "").replace(".txt", "") for f in report_files]
+
+    selected_label = st.selectbox(
+        "Choisissez un rapport (date de marché)",
+        options=options_labels,
+        index=0,  # rapport le plus récent par défaut
+    )
+
+    # Fichier correspondant au label choisi
+    selected_file = report_files[options_labels.index(selected_label)]
+
+    with selected_file.open("r", encoding="utf-8") as f:
+        content = f.read()
+
+    st.markdown(f"**Rapport sélectionné :** `{selected_file.name}`")
+    st.code(content, language="text")
+
+    # Option de téléchargement direct
+    st.download_button(
+        label="📥 Télécharger ce rapport",
+        data=content,
+        file_name=selected_file.name,
+        mime="text/plain",
+    )

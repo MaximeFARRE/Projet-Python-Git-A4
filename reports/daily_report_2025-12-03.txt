@@ -1,0 +1,21 @@
+===== RAPPORT QUOTIDIEN DU 2025-12-03 =====
+Heure de génération du rapport : 2025-12-04 11:11:11
+
+Actif : CAC 40 (^FCHI)
+
+--- JOURNÉE ---
+Prix d'ouverture : 8071.78
+Prix de clôture : 8087.42
+Rendement du jour : 0.16 %
+
+--- PÉRIODES EN COURS ---
+Performance semaine en cours : -0.12 %
+Performance mois en cours   : -0.12 %
+Performance YTD (année en cours) : 9.38 %
+
+--- RISQUE (fenêtre 90 jours) ---
+Volatilité annualisée : 11.53 %
+Max drawdown          : -3.74 %
+
+Source des données : Yahoo Finance via yfinance
+Généré automatiquement par app.quant_a.daily_report

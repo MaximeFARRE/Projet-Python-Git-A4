@@ -51,26 +51,12 @@ def load_history(
             auto_adjust=False,
         )
 
-    if interval in intraday_intervals:
-        data = yf.download(
-            ticker,
-            period=f"{intraday_days}d",
-            interval=interval,
-            progress=False,
-            auto_adjust=False,
-        )
-    else:
-        data = yf.download(
-            ticker,
-            start=start,
-            end=end,
-            interval=interval,
-            progress=False,
-            auto_adjust=False,
+    if data is None or data.empty:
+        raise ValueError(
+            f"Aucune donnée renvoyée par Yahoo Finance pour ticker='{ticker}', interval='{interval}'. "
+            "Vérifie le ticker, l'intervalle, ou réessaie plus tard."
         )
 
-    if data.empty:
-        return data
 
     # Certaines versions de yfinance renvoient un MultiIndex de colonnes :
     # par ex. ('Open', '^FCHI'), ('High', '^FCHI'), ...

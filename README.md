@@ -1,4 +1,4 @@
-# 📈 Quantitative Finance Dashboard  
+# Quantitative Finance Dashboard  
 **Python · Git · Linux for Finance**
 
 ---

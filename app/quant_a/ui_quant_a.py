@@ -116,6 +116,54 @@ def _build_comparison_messages(
     return messages
 
 
+def _normalize_base1(s: pd.Series) -> pd.Series:
+    """Normalise une série en base 1 sur le premier point non-NaN."""
+    s = s.astype(float).copy()
+    first_valid = s.dropna().iloc[0] if not s.dropna().empty else None
+    if first_valid is None or first_valid == 0:
+        return s * float("nan")
+    return s / first_valid
+
+
+def _plot_price_vs_equity_base1(
+    dates,
+    price_base1: pd.Series,
+    equity_base1: pd.Series,
+    asset_name: str,
+    strategy_name: str,
+):
+    """Graphique conforme: prix base 1 + equity stratégie base 1 sur une seule figure."""
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=price_base1,
+            mode="lines",
+            name=f"Prix {asset_name} (base 1)",
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=equity_base1,
+            mode="lines",
+            name=f"Stratégie: {strategy_name} (base 1)",
+        )
+    )
+
+    fig.update_layout(
+        title="Graphique principal (conforme) : Prix vs Stratégie (base 1)",
+        xaxis_title="Date",
+        yaxis_title="Valeur (base 1)",
+        height=520,
+        margin=dict(l=40, r=20, t=60, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+
+    return fig
+
 # ===================== 2. FONCTION PRINCIPALE UI =====================
 
 
@@ -648,7 +696,26 @@ def render_quant_a_page():
 )
 
 
-    # ---------- 2.6. GRAPHIQUE COMPARATIF ----------
+    # ---------- 2.6. GRAPHIQUE PRINCIPAL CONFORME ----------
+    st.subheader("Graphique principal (conforme) : Prix vs Stratégie (base 1)")
+
+    # Prix base 1 (sur la même plage que strat_df)
+    price_base1 = _normalize_base1(strat_df["price"])
+
+    # Equity stratégie base 1
+    equity_base1 = _normalize_base1(strat_df["equity_curve"])
+
+    fig_main = _plot_price_vs_equity_base1(
+        dates=strat_df.index,
+        price_base1=price_base1,
+        equity_base1=equity_base1,
+        asset_name=selected_asset.name,
+        strategy_name=strategy_name,
+    )
+
+    st.plotly_chart(fig_main, use_container_width=True)
+
+        
     st.subheader("Comparaison sur une base normalisée (valeur 1 au départ)")
 
     chart_df = pd.DataFrame(

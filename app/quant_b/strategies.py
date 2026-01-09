@@ -195,3 +195,46 @@ def regime_switch_multi(
         weights = _signals_to_equal_weights(signals)
 
     return StrategyResult(weights=weights, signals=signals.astype(int), details=details)
+
+# ============================================================
+# 4) SINGLE ROUTER (convenient for the UI)
+# ============================================================
+def compute_strategy_weights(
+    prices: pd.DataFrame,
+    strategy: str,
+    params: Dict[str, Any] | None = None,
+    base_weights: Dict[str, float] | None = None,
+) -> StrategyResult:
+    """
+    Single entry point:
+    strategy in {"Buy & Hold", "MA Crossover", "Regime Switch"}
+    """
+    params = params or {}
+
+    if strategy == "Buy & Hold":
+        return buy_and_hold_multi(prices, base_weights=base_weights)
+
+    if strategy == "MA Crossover":
+        return ma_crossover_multi(
+            prices,
+            short_window=int(params.get("short_window", 50)),
+            long_window=int(params.get("long_window", 200)),
+            allocation_rule=str(params.get("allocation_rule", "Equal-weight")),
+            alloc_vol_window=int(params.get("alloc_vol_window", 20)),
+        )
+
+    if strategy == "Regime Switch":
+        return regime_switch_multi(
+            prices,
+            vol_short_window=int(params.get("vol_short_window", 20)),
+            vol_long_window=int(params.get("vol_long_window", 100)),
+            alpha=float(params.get("alpha", 1.0)),
+            trend_ma_window=int(params.get("trend_ma_window", 50)),
+            mr_window=int(params.get("mr_window", 20)),
+            z_threshold=float(params.get("z_threshold", 1.0)),
+            long_only=bool(params.get("long_only", True)),
+            allocation_rule=str(params.get("allocation_rule", "Equal-weight")),
+            alloc_vol_window=int(params.get("alloc_vol_window", 20)),
+        )
+
+    raise ValueError(f"Unknown strategy: {strategy}")

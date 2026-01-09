@@ -136,150 +136,184 @@ def _plot_dist_heatmap(dist: pd.DataFrame) -> go.Figure:
 
 
 def render():
-    st.set_page_config(page_title="Quant B — Portfolio", layout="wide")
-    st.title("Quant B — Module Portefeuille Multi-Actifs")
+    # ⚠️ IMPORTANT: do NOT call set_page_config here, since main.py already does it.
+    st.title("Quant B — Multi-Asset Portfolio Module")
+
+    st.markdown(
+        """
+        <style>
+        /* Layout */
+        .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+        h1, h2, h3 { letter-spacing: -0.2px; }
+
+        /* Subtle section header */
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 650;
+            margin: 0.2rem 0 0.6rem 0;
+            padding: 0.55rem 0.75rem;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.08); /* light blue */
+            border: 1px solid rgba(59, 130, 246, 0.18);
+        }
+        .section-title.alt {
+            background: rgba(16, 185, 129, 0.08); /* light green */
+            border: 1px solid rgba(16, 185, 129, 0.18);
+        }
+        .section-title.neutral {
+            background: rgba(148, 163, 184, 0.12); /* slate */
+            border: 1px solid rgba(148, 163, 184, 0.22);
+        }
+
+        /* Metric styling */
+        [data-testid="stMetric"]{
+            background: rgba(15, 23, 42, 0.03);
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+        [data-testid="stMetricLabel"] { opacity: 0.85; }
+        [data-testid="stMetricValue"] { font-weight: 750; }
+
+        /* Dataframes */
+        .stDataFrame { border-radius: 12px; overflow: hidden; border: 1px solid rgba(15, 23, 42, 0.08); }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     load_history = _import_load_history()
     if load_history is None:
-        st.error(
-            "Impossible d'importer `load_history`.\n"
-            "➡️ Ouvre `app/quant_b/page_quant_b.py` et adapte la fonction `_import_load_history()` "
-            "selon l'emplacement réel de votre data loader."
-        )
+        st.error("Unable to import `load_history` (Quant A).")
         st.stop()
 
     asset_universe = _import_universe()
     if asset_universe is None:
-        st.error(
-            "Impossible d'importer `ASSET_UNIVERSE`.\n"
-            "➡️ Vérifie que `app/quant_a/universe.py` existe et contient `ASSET_UNIVERSE`."
-        )
+        st.error("Unable to import `ASSET_UNIVERSE` (Quant A).")
         st.stop()
 
-    all_labels, label_to_ticker, class_to_labels = _flatten_universe(asset_universe)
+    all_labels, label_to_ticker = _flatten_universe(asset_universe)
 
-    # -------- Sidebar controls --------
-    st.sidebar.header("Paramètres")
+    st.subheader("Parameters (single-page)")
 
-    interval = st.sidebar.selectbox("Intervalle", ["1d", "1h", "15m", "5m"], index=0)
+    # =========================
+    # SINGLE FORM: all parameters here
+    # =========================
+    c1, c2, c3 = st.columns(3)
 
-    rebalance_ui = st.sidebar.selectbox("Rebalancement", ["Aucun", "Quotidien (D)", "Hebdo (W)", "Mensuel (M)"], index=3)
-    rebalance_map = {"Aucun": None, "Quotidien (D)": "D", "Hebdo (W)": "W", "Mensuel (M)": "M"}
-    rebalance = rebalance_map[rebalance_ui]
+    with c1:
+        interval = st.selectbox("Interval", ["1d", "60m", "15m", "5m"], index=0, key="qb_interval")
 
-    st.sidebar.subheader("Sélection des actifs (≥ 3)")
-    selected_labels = st.sidebar.multiselect(
-        "Choisis des actifs",
+    with c2:
+        rebalance_ui = st.selectbox(
+            "Rebalancing",
+            ["None", "Daily (D)", "Weekly (W)", "Monthly (M)"],
+            index=3,
+            key="qb_rebalance_ui",
+        )
+        rebalance_map = {"None": None, "Daily (D)": "D", "Weekly (W)": "W", "Monthly (M)": "M"}
+        rebalance = rebalance_map[rebalance_ui]
+
+    with c3:
+        mode = st.radio("Portfolio type", ["Fixed weights", "Strategy"], index=0, horizontal=True, key="qb_mode")
+
+    st.markdown("#### Asset selection (≥ 3)")
+    selected_labels = st.multiselect(
+        "Choose assets",
         options=all_labels,
         default=all_labels[:3] if len(all_labels) >= 3 else all_labels,
+        key="qb_assets",
     )
 
     if len(selected_labels) < 3:
-        st.warning("Sélectionne au moins 3 actifs pour le module Quant B.")
+        st.warning("Select at least 3 assets.")
         st.stop()
 
     tickers = [label_to_ticker[lbl] for lbl in selected_labels]
 
-    st.sidebar.subheader("Poids")
-    mode_weights = st.sidebar.radio("Mode", ["Equal-weight", "Custom"], index=0)
+    # =========================
+    # Validation + tickers
+    # =========================
+    if len(selected_labels) < 3:
+        st.warning("Select at least 3 assets.")
+        st.stop()
 
+    tickers = [label_to_ticker[lbl] for lbl in selected_labels]
+
+    # =========================
+    # Build weights if needed
+    # =========================
     weights = {}
-    if mode_weights == "Equal-weight":
-        w = 1.0 / len(tickers)
-        weights = {t: w for t in tickers}
-        st.sidebar.caption(f"Chaque actif = {w:.3f}")
-    else:
-        # sliders de poids, puis normalisation
-        raw = {}
-        for t in tickers:
-            raw[t] = st.sidebar.slider(f"Poids {t}", min_value=0.0, max_value=1.0, value=1.0 / len(tickers), step=0.01)
-        s = sum(raw.values())
-        if s == 0:
-            st.sidebar.error("La somme des poids ne peut pas être 0.")
-            st.stop()
-        weights = {k: v / s for k, v in raw.items()}
-        st.sidebar.caption(f"Somme normalisée = 1.00 (somme brute={s:.2f})")
 
-    # -------- Load data --------
-    st.subheader("Données & Résultats")
+    if mode == "Fixed weights":
+        st.markdown("#### Weights (Fixed weights)")
+        wmode = st.radio("Mode", ["Equal-weight", "Custom"], index=0, horizontal=True, key="qb_wmode_fixed")
 
-    with st.spinner("Chargement des données..."):
-        # IMPORTANT : adapte les paramètres selon votre signature load_history
-        # Ici on suppose une signature type: load_history(tickers=..., interval=...)
-        try:
-            prices = load_history(tickers=tickers, interval=interval)
-        except TypeError:
-            # fallback si signature différente
-            prices = load_history(tickers, interval=interval)
+        if wmode == "Equal-weight":
+            w = 1.0 / len(tickers)
+            weights = {t: w for t in tickers}
+            st.caption(f"Each asset = {w:.3f}")
+        else:
+            st.caption("Adjust the weights (they will be normalized automatically).")
+            raw = {}
+            cols = st.columns(min(4, len(tickers)))
+            for i, t in enumerate(tickers):
+                with cols[i % len(cols)]:
+                    raw[t] = st.slider(f"Weight {t}", 0.0, 1.0, 1.0 / len(tickers), 0.01, key=f"qb_w_{t}")
+            weights = _normalize_weights_dict(raw)
 
-    if not isinstance(prices, pd.DataFrame) or prices.empty:
-        st.error("Le loader a renvoyé un objet non valide ou vide. Vérifie `load_history`.")
-        st.stop()
+    elif mode == "Strategy":
+        st.markdown("#### Strategy (Quant A → Quant B)")
+        strategy_name = st.selectbox("Strategy", ["Buy & Hold", "MA Crossover", "Regime Switch"], index=1, key="qb_strategy")
 
-    # S'assure que colonnes = tickers sélectionnés
-    # Si votre loader renvoie OHLC multi-colonnes, adapte ici (ex: sélectionner Close)
-    # Exemple d'adaptation possible (à décommenter si nécessaire) :
-    # if "Close" in prices.columns:
-    #     prices = prices[["Close"]]
-
-    # -------- Portfolio calc --------
-    # On garde uniquement les colonnes demandées (si le loader renvoie plus)
-    cols = [c for c in prices.columns if c in tickers]
-    if len(cols) < 3:
-        st.error(
-            "Je ne retrouve pas les tickers sélectionnés dans les colonnes de `prices`.\n"
-            "➡️ Affiche `prices.columns` et adapte la sélection (souvent il faut extraire Close)."
+        strategy_params = {}
+        # ===== Allocation rule (to match requirements) =====
+        alloc_rule = st.selectbox(
+            "Allocation rule",
+            ["Equal-weight", "Inverse-vol"],
+            index=0,
+            key="qb_alloc_rule",
         )
-        st.write(prices.head())
-        st.write(prices.columns)
-        st.stop()
 
-    prices = prices[cols].dropna(how="all")
-    prices = prices.dropna()  # simple: on garde les dates complètes
+        strategy_params["allocation_rule"] = alloc_rule
 
-    if len(prices) < 10:
-        st.warning("Peu de données chargées (moins de 10 points). Les stats peuvent être peu fiables.")
+        if alloc_rule == "Inverse-vol":
+            strategy_params["alloc_vol_window"] = st.slider(
+                "Vol window (Inverse-vol)",
+                5, 120, 20, 1,
+                key="qb_alloc_vol_window",
+            )
 
-    portfolio_value = compute_portfolio_value(prices, weights, rebalance=rebalance, base=100.0)
+        if strategy_name == "Buy & Hold":
+            st.markdown("##### Weights (Buy & Hold)")
+            bh_mode = st.radio("Mode", ["Equal-weight", "Custom"], index=0, horizontal=True, key="qb_bh_mode")
+            if bh_mode == "Equal-weight":
+                w = 1.0 / len(tickers)
+                weights = {t: w for t in tickers}
+            else:
+                raw = {}
+                cols = st.columns(min(4, len(tickers)))
+                for i, t in enumerate(tickers):
+                    with cols[i % len(cols)]:
+                        raw[t] = st.slider(f"Weight {t}", 0.0, 1.0, 1.0 / len(tickers), 0.01, key=f"qb_bh_{t}")
+                weights = _normalize_weights_dict(raw)
 
-    asset_returns = compute_returns(prices)
-    portfolio_returns = np.log(portfolio_value / portfolio_value.shift(1)).dropna()
+        elif strategy_name == "MA Crossover":
+            c1, c2 = st.columns(2)
+            with c1:
+                strategy_params["short_window"] = st.slider("MA short window", 5, 300, 50, 1, key="qb_ma_s")
+            with c2:
+                strategy_params["long_window"] = st.slider("MA long window", 10, 600, 200, 1, key="qb_ma_l")
 
-    m = portfolio_metrics(
-        asset_returns=asset_returns,
-        portfolio_returns=portfolio_returns,
-        portfolio_value=portfolio_value,
-        interval=interval,
-    )
-
-    # -------- Layout --------
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Rendement cumulé (portefeuille)", f"{m['portfolio_cumulative_return']*100:.2f}%")
-    c2.metric("Vol annualisée (portefeuille)", f"{m['portfolio_vol_annualized']*100:.2f}%")
-    c3.metric("CAGR approx (portefeuille)", f"{m['portfolio_cagr']*100:.2f}%")
-    c4.metric("Ratio diversification", f"{m['diversification_ratio']:.3f}")
-
-    left, right = st.columns([2, 1])
-
-    with left:
-        norm_prices = _normalize_prices(prices, base=100.0)
-        fig_main = _plot_prices_and_portfolio(norm_prices, portfolio_value)
-        st.plotly_chart(fig_main, use_container_width=True)
-
-    with right:
-        st.write("**Poids utilisés (normalisés)**")
-        st.dataframe(pd.DataFrame({"ticker": list(weights.keys()), "weight": list(weights.values())}).set_index("ticker"))
-
-        st.write("**Vol annualisée par actif**")
-        st.dataframe(m["asset_vols_annualized"].to_frame("vol_annualized"))
-
-    st.divider()
-    st.subheader("Corrélation & Diversification")
-
-    fig_corr = _plot_corr_heatmap(m["correlation"])
-    st.plotly_chart(fig_corr, use_container_width=True)
-
-    st.caption(
-        "Interprétation du ratio diversification : "
-        "ratio < 1 → portefeuille moins volatil que la moyenne des actifs (diversification utile)."
-    )
+        elif strategy_name == "Regime Switch":
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                strategy_params["vol_short_window"] = st.slider("Vol short window", 5, 200, 20, 1, key="qb_rs_vs")
+                strategy_params["trend_ma_window"] = st.slider("Trend MA window", 10, 400, 50, 1, key="qb_rs_tma")
+            with c2:
+                strategy_params["vol_long_window"] = st.slider("Vol long window", 10, 400, 100, 1, key="qb_rs_vl")
+                strategy_params["mr_window"] = st.slider("Mean reversion window", 5, 200, 20, 1, key="qb_rs_mr")
+            with c3:
+                strategy_params["alpha"] = st.slider("Alpha", 0.1, 5.0, 1.0, 0.1, key="qb_rs_a")
+                strategy_params["z_threshold"] = st.slider("Z threshold", 0.1, 5.0, 1.0, 0.1, key="qb_rs_z")
+                strategy_params["long_only"] = st.checkbox("Long-only", value=True, key="qb_rs_lo")

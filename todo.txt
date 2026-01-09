@@ -1,11 +1,3 @@
-✅ Priorité 1 — Stabiliser (obligatoire)
-
-Robustesse erreurs API
-
-si yfinance renvoie vide / erreur : message UI clair + pas de crash
-
-(ton code le gère déjà partiellement, mais on peut verrouiller)
-
 ✅ Priorité 2 — Conformité au sujet (obligatoire)
 
 Graphique principal conforme

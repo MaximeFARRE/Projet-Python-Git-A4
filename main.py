@@ -1,13 +1,29 @@
 import streamlit as st
+import datetime as dt
+
 from app.quant_a.ui_quant_a import render_quant_a_page
 
 
 def main():
+    # Configuration globale
     st.set_page_config(
         page_title="Quant Dashboard - Indices",
         layout="wide",
     )
 
+    # 🔄 Auto-refresh toutes les 5 minutes (300 secondes)
+    st.markdown(
+        "<meta http-equiv='refresh' content='300'>",
+        unsafe_allow_html=True
+    )
+
+    # Info visuelle (utile en soutenance)
+    st.caption(
+        f"⏱️ Dernière actualisation automatique : "
+        f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
+    # Sidebar
     st.sidebar.title("Navigation")
     mode = st.sidebar.radio(
         "Choisir le module :",
@@ -17,6 +33,7 @@ def main():
         ],
     )
 
+    # Routing
     if mode.startswith("Single Asset"):
         render_quant_a_page()
     else:

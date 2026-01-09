@@ -5,7 +5,7 @@ import numpy as np
 
 def total_return(equity_curve: pd.Series) -> float:
     """
-    Rendement total sur la période, à partir de la courbe d’équité (base 1.0).
+    Total return over the period, computed from the equity curve (base 1.0).
     """
     if equity_curve.empty:
         return np.nan
@@ -14,8 +14,8 @@ def total_return(equity_curve: pd.Series) -> float:
 
 def annualized_return(equity_curve: pd.Series, periods_per_year: int = 252) -> float:
     """
-    Rendement annualisé à partir de la courbe d’équité.
-    periods_per_year : 252 pour du daily, 12 pour du monthly, etc.
+    Annualized return computed from the equity curve.
+    periods_per_year: 252 for daily data, 12 for monthly data, etc.
     """
     if equity_curve.empty:
         return np.nan
@@ -30,7 +30,7 @@ def annualized_return(equity_curve: pd.Series, periods_per_year: int = 252) -> f
 
 def annualized_volatility(returns: pd.Series, periods_per_year: int = 252) -> float:
     """
-    Volatilité annualisée (écart-type des rendements * sqrt(periods_per_year)).
+    Annualized volatility (standard deviation of returns * sqrt(periods_per_year)).
     """
     if returns.empty:
         return np.nan
@@ -45,8 +45,8 @@ def sharpe_ratio(
     periods_per_year: int = 252,
 ) -> float:
     """
-    Sharpe ratio annualisé.
-    risk_free_rate : taux sans risque annualisé (ex: 0.02 pour 2%).
+    Annualized Sharpe ratio.
+    risk_free_rate: annualized risk-free rate (e.g. 0.02 for 2%).
     """
     if returns.empty:
         return np.nan
@@ -56,7 +56,7 @@ def sharpe_ratio(
     if vol == 0 or np.isnan(vol):
         return np.nan
 
-    # Rendement en excès par période
+    # Excess return per period
     excess_return_per_period = avg_return - (risk_free_rate / periods_per_year)
     sharpe = (excess_return_per_period / vol) * np.sqrt(periods_per_year)
     return float(sharpe)
@@ -64,8 +64,8 @@ def sharpe_ratio(
 
 def max_drawdown(equity_curve: pd.Series) -> float:
     """
-    Max drawdown à partir de la courbe d’équité.
-    Retourne une valeur négative (ex: -0.35 pour -35%).
+    Maximum drawdown computed from the equity curve.
+    Returns a negative value (e.g. -0.35 for -35%).
     """
     if equity_curve.empty:
         return np.nan
@@ -82,7 +82,7 @@ def compute_all_metrics(
     periods_per_year: int = 252,
 ) -> dict:
     """
-    Helper qui renvoie toutes les métriques dans un dict.
+    Helper function that returns all metrics in a dictionary.
     """
     tr = total_return(equity_curve)
     ar = annualized_return(equity_curve, periods_per_year=periods_per_year)
@@ -102,15 +102,16 @@ def compute_all_metrics(
         "max_drawdown": mdd,
     }
 
+
 def compute_trade_metrics(trades: pd.DataFrame) -> dict:
     """
-    Calcule des métriques de trading à partir d'un DataFrame de trades
-    produit par extract_trades_from_position, contenant au moins :
+    Compute trading metrics from a trades DataFrame
+    produced by extract_trades_from_position, containing at least:
     - direction ('LONG' / 'SHORT')
-    - trade_return (rendement en décimal, ex: 0.05 pour +5%)
-    - holding_period_bars (durée du trade en nombre de barres)
+    - trade_return (decimal return, e.g. 0.05 for +5%)
+    - holding_period_bars (trade duration in number of bars)
 
-    Retourne un dict avec par exemple :
+    Returns a dictionary with, for example:
     - n_trades
     - win_rate
     - pct_longs

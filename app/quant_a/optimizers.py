@@ -10,7 +10,7 @@ from .metrics import compute_all_metrics
 
 
 # =====================================================================
-# 1) OPTIMISATION MOVING AVERAGE CROSSOVER
+# 1) MOVING AVERAGE CROSSOVER OPTIMIZATION
 # =====================================================================
 
 def optimize_moving_average_params(
@@ -18,10 +18,10 @@ def optimize_moving_average_params(
     periods_per_year: int,
 ):
     """
-    Recherche des paramètres (short_window, long_window) pour la stratégie
-    Moving Average Crossover maximisant le rendement total sur la période.
+    Search for (short_window, long_window) parameters for the
+    Moving Average Crossover strategy that maximize total return.
 
-    Grid search volontairement limitée pour rester rapide.
+    Grid search is intentionally limited to remain fast.
     """
     prices = prices.dropna()
     if prices.empty:
@@ -32,7 +32,7 @@ def optimize_moving_average_params(
     best_long = None
     best_metrics = None
 
-    # Exemple de grille (tu peux ajuster les bornes si besoin)
+    # Example grid (adjust bounds if needed)
     short_list = [10, 20, 30, 50]
     long_list = [100, 150, 200, 250]
 
@@ -73,7 +73,7 @@ def optimize_moving_average_params(
 
 
 # =====================================================================
-# 2) OPTIMISATION REGIME SWITCHING (TREND + MEAN-REVERSION)
+# 2) REGIME SWITCHING OPTIMIZATION (TREND + MEAN REVERSION)
 # =====================================================================
 
 def optimize_regime_switching(
@@ -81,15 +81,15 @@ def optimize_regime_switching(
     periods_per_year: int,
 ):
     """
-    Optimise automatiquement les paramètres du modèle regime switching
-    en testant un ensemble réduit de valeurs.
+    Automatically optimize regime switching model parameters
+    by testing a reduced set of values.
     """
 
     prices = prices.dropna()
     if prices.empty:
         return None
 
-    # Grilles raisonnables pour ne pas exploser le temps de calcul
+    # Reasonable grids to keep computation time under control
     vol_short_list = [10, 20, 30]
     vol_long_list = [80, 120, 150]
     alpha_list = [0.9, 1.0, 1.1]

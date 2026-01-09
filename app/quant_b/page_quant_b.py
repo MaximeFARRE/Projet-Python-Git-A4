@@ -463,3 +463,135 @@ def render():
 
     last_weights = weights_used_df.iloc[-1].copy()
     rc_pct, rc_abs, port_vol_from_cov = risk_contributions_from_cov(last_weights, cov_ann)
+
+    # =========================
+    # Display (UI only)
+    # =========================
+
+    # --- Config recap in an expander (readability) ---
+    with st.expander("Portfolio configuration", expanded=False):
+        cR1, cR2, cR3 = st.columns(3)
+        with cR1:
+            st.write("**Mode**")
+            st.write(mode)
+            st.write("**Interval**")
+            st.write(interval)
+        with cR2:
+            st.write("**Rebalancing**")
+            st.write(rebalance_ui)
+            if mode == "Strategy":
+                st.write("**Strategy**")
+                st.write(strategy_name)
+        with cR3:
+            st.write("**Assets**")
+            st.write(", ".join(list(prices.columns)))
+
+        if mode == "Fixed weights":
+            st.write("**Fixed weights (normalized)**")
+            st.dataframe(pd.Series(weights).reindex(prices.columns).fillna(0.0).to_frame("weight"))
+        else:
+            st.write("**Allocation rule**")
+            st.write(strategy_params.get("allocation_rule", "Equal-weight"))
+            if strategy_params.get("allocation_rule") == "Inverse-vol":
+                st.write("**Vol window**")
+                st.write(int(strategy_params.get("alloc_vol_window", 20)))
+
+    # --- Main tabs ---
+    tab_overview, tab_div, tab_details = st.tabs(["Overview", "Diversification", "Details"])
+
+    # =========================
+    # OVERVIEW
+    # =========================
+    with tab_overview:
+        st.markdown('<div class="section-title">Visual comparison: assets vs portfolio</div>', unsafe_allow_html=True)
+
+        # Main chart controls (asset selection)
+        shown_assets = st.multiselect(
+            "Asset series shown (portfolio is always displayed)",
+            options=list(prices.columns),
+            default=list(prices.columns),
+            key="qb_chart_assets",
+        )
+        if len(shown_assets) == 0:
+            shown_assets = list(prices.columns)
+
+        norm_prices = _normalize_prices(prices[shown_assets], base=100.0)
+        fig_main = _plot_prices_and_portfolio(norm_prices, portfolio_value)
+        fig_main.update_layout(margin=dict(l=10, r=10, t=55, b=10))
+        st.plotly_chart(fig_main, use_container_width=True)
+
+        st.markdown('<div class="section-title alt">Key Portfolio Metrics</div>', unsafe_allow_html=True)
+
+        # Row 1 KPIs (performance/risk)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Cumulative return", f"{m['portfolio_cumulative_return']*100:.2f}%")
+        k2.metric("Annualized return", f"{m['portfolio_return_annualized']*100:.2f}%")
+        k3.metric("Annualized vol", f"{m['portfolio_vol_annualized']*100:.2f}%")
+        k4.metric("Max Drawdown", f"{m['portfolio_max_drawdown']*100:.2f}%")
+
+        # Row 2 KPIs (ratios + diversification)
+        k5, k6, k7, k8 = st.columns(4)
+        k5.metric("Sharpe (rf=0)", f"{m['portfolio_sharpe']:.2f}")
+        k6.metric("Diversification ratio (quick)", f"{m['diversification_ratio']:.3f}")
+        k7.metric("Average correlation", f"{avg_pairwise_corr:.2f}")
+        k8.metric("Effective N", f"{n_eff:.2f}")
+
+        # Row 3 KPIs (explicit diversification)
+        k9, k10, k11, k12 = st.columns(4)
+        k9.metric("Diversification Ratio (vol_wavg/vol_p)", f"{div_ratio_true:.2f}")
+        k10.metric("Vol reduction", f"{vol_reduction*100:.1f}%")
+        k11.metric("Turnover (latest)", "—")
+        k12.metric("Vol (from cov)", "—")
+
+
+        st.caption(
+            "Quick read: diversification ratio > 1 and vol reduction > 0% indicate a gain driven by correlations < 1."
+        )
+
+    # =========================
+    # DIVERSIFICATION
+    # =========================
+    with tab_div:
+        st.markdown('<div class="section-title neutral">Diversification effects: matrices & risk contributions</div>', unsafe_allow_html=True)
+
+        subtab_mats, subtab_rc = st.tabs(["Matrices", "Risk contributions"])
+
+        with subtab_mats:
+            # Matrices: avoid 3 heatmaps at once => 2 columns + 1 sub-section
+            cA, cB = st.columns(2)
+            with cA:
+                st.plotly_chart(_plot_corr_heatmap(m["correlation"]), use_container_width=True)
+            with cB:
+                st.plotly_chart(_plot_cov_heatmap(cov_ann), use_container_width=True)
+
+            st.plotly_chart(_plot_dist_heatmap(dist), use_container_width=True)
+
+        with subtab_rc:
+            st.write("**Risk contributions (volatility / variance)**")
+            df_rc = pd.DataFrame({
+                "weight": last_weights.reindex(cov_ann.index).fillna(0.0),
+                "risk_contrib_%": (rc_pct * 100.0).round(2),
+            }).sort_values("risk_contrib_%", ascending=False)
+
+            st.dataframe(df_rc, use_container_width=True)
+            st.caption("An asset can have a small weight but a large risk contribution: this is a key diversification insight.")
+
+    # =========================
+    # DETAILS
+    # =========================
+    with tab_details:
+        st.markdown('<div class="section-title neutral">Details (tables)</div>', unsafe_allow_html=True)
+
+        dL, dR = st.columns([1, 1])
+
+        with dL:
+            st.write("**Latest weights used**")
+            last_w_sorted = weights_used_df.iloc[-1].sort_values(ascending=False)
+            st.dataframe(last_w_sorted.to_frame("weight"), use_container_width=True)
+
+        with dR:
+            st.write("**Annualized vol per asset**")
+            st.dataframe(m["asset_vols_annualized"].to_frame("vol_annualized"), use_container_width=True)
+
+        with st.expander("Weights matrix (over time)", expanded=False):
+            st.dataframe(weights_used_df.tail(200), use_container_width=True)

@@ -132,27 +132,34 @@ The repository follows the structure below:
 ```text
 PROJET/
 ├── .streamlit/
-│   └── config.toml              # Streamlit configuration
+│   └── config.toml              # Streamlit configuration (layout, theme)
 │
 ├── app/
-│   ├── quant_a/                 # Single-asset analysis (Quant A)
-│   │   ├── data_loader.py       # API data retrieval
+│   ├── quant_a/                 # Quant A — Single Asset module
+│   │   ├── data_loader.py       # Market data retrieval (API)
 │   │   ├── strategies.py        # Single-asset strategies
 │   │   ├── metrics.py           # Performance metrics
-│   │   └── universe.py          # Asset universe definition
+│   │   ├── optimizers.py        # Portfolio/strategy optimizers
+│   │   ├── daily_report.py      # Daily report generation (cron)
+│   │   ├── ui_quant_a.py        # Streamlit UI for Quant A
+│   │   ├── universe.py          # Asset universe definition
+│   │   └── readme_quant_a.md    # Quant A technical documentation
 │   │
-│   ├── quant_b/                 # Multi-asset portfolio module (Quant B)
-│   │   ├── backtest.py          # Portfolio backtesting & turnover
-│   │   ├── data_adapter.py      # Adapter to reuse Quant A loader
-│   │   ├── metrics.py           # Portfolio & diversification metrics
-│   │   ├── portfolio.py         # Portfolio valuation logic
+│   ├── quant_b/                 # Quant B — Multi-Asset Portfolio module
+│   │   ├── data_adapter.py      # Adapter to reuse Quant A data loader
 │   │   ├── strategies.py        # Multi-asset strategies
-│   │   └── page_quant_b.py      # Streamlit portfolio page
+│   │   ├── portfolio.py         # Portfolio valuation logic
+│   │   ├── backtest.py          # Portfolio backtesting & turnover
+│   │   ├── metrics.py           # Portfolio & diversification metrics
+│   │   └── page_quant_b.py      # Streamlit UI for Quant B
 │   │
 │   └── __init__.py
 │
 ├── reports/                     # Daily reports generated via cron
+│   ├── daily_report_YYYY-MM-DD.txt
+│   └── ...
+│
 ├── main.py                      # Streamlit application entry point
 ├── .gitignore
-├── todo.txt
-└── README.md
+├── README.md                    # Project documentation
+└── todo.txt

@@ -2,25 +2,30 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+import datetime as dt 
 
 from app.quant_b.portfolio import compute_portfolio_value, compute_returns
-from app.quant_b.metrics import portfolio_metrics
+from app.quant_b.metrics import (
+    portfolio_metrics,
+    covariance_matrix_annualized,
+    correlation_distance_matrix,
+    risk_contributions_from_cov,
+)
+from app.quant_b.data_adapter import load_prices_matrix
+from app.quant_b.strategies import compute_strategy_weights
+from app.quant_b.backtest import compute_portfolio_value_from_weights, compute_turnover
 
 
-# ========= ADAPTER ICI : import du data loader =========
+# ========= ADAPTER: import the data loader =========
 def _import_load_history():
-    """
-    Essaie plusieurs chemins d'import pour load_history.
-    Adapte si besoin selon votre projet.
-    """
     try:
-        from app.quant_a.data_loader import load_history  # option fréquente
+        from app.quant_a.data_loader import load_history
         return load_history
     except Exception:
         pass
 
     try:
-        from app.data_loader import load_history  # autre option fréquente
+        from app.quant_a.data_loader import load_history
         return load_history
     except Exception:
         pass
@@ -28,7 +33,7 @@ def _import_load_history():
     return None
 
 
-# ========= ADAPTER ICI : import de l'univers =========
+# ========= ADAPTER: import the universe =========
 def _import_universe():
     try:
         from app.quant_a.universe import ASSET_UNIVERSE
@@ -38,33 +43,28 @@ def _import_universe():
 
 
 def _flatten_universe(asset_universe):
-    """
-    Transforme ASSET_UNIVERSE en liste de choix et mapping label->ticker.
-    label = "Classe - Nom (Ticker)"
-    """
     label_to_ticker = {}
-    class_to_labels = {}
+    all_labels = []
 
     for asset_class, assets in asset_universe.items():
-        labels = []
         for a in assets:
             label = f"{asset_class} - {a.name} ({a.ticker})"
             label_to_ticker[label] = a.ticker
-            labels.append(label)
-        class_to_labels[asset_class] = labels
+            all_labels.append(label)
 
-    all_labels = []
-    for asset_class in class_to_labels:
-        all_labels.extend(class_to_labels[asset_class])
+    return all_labels, label_to_ticker
 
-    return all_labels, label_to_ticker, class_to_labels
+
+def _normalize_weights_dict(raw: dict) -> dict:
+    s = float(sum(raw.values()))
+    if s <= 0:
+        raise ValueError("Sum of weights = 0.")
+    return {k: float(v) / s for k, v in raw.items()}
 
 
 def _normalize_prices(prices: pd.DataFrame, base: float = 100.0) -> pd.DataFrame:
-    """
-    Normalise chaque série à base=100 pour comparaison visuelle.
-    """
     return base * (prices / prices.iloc[0])
+
 
 
 def _plot_prices_and_portfolio(norm_prices: pd.DataFrame, portfolio_value: pd.Series) -> go.Figure:

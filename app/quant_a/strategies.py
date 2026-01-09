@@ -5,29 +5,30 @@ import numpy as np
 
 def _to_series(x: pd.Series | pd.DataFrame) -> pd.Series:
     """
-    Force un objet pandas 1D (Series). Si DataFrame (n,1), on squeeze la première colonne.
+    Force a 1D pandas object (Series).
+    If a DataFrame (n,1) is provided, squeeze the first column.
     """
     if isinstance(x, pd.DataFrame):
-        # on prend la première colonne
+        # Take the first column
         return x.iloc[:, 0]
     return x
 
 
 def _compute_equity_curve_from_position(prices: pd.Series, position: pd.Series) -> pd.DataFrame:
     """
-    Utilitaire : à partir d'une série de prix et d'une série de positions (0/1),
-    calcule les rendements et la courbe d’équité.
+    Utility function: from a price series and a position series (0/1),
+    compute returns and the equity curve.
     """
 
     prices = _to_series(prices).sort_index()
     position = _to_series(position)
 
-    # On s'assure que l'index est aligné
+    # Ensure index alignment
     position = position.reindex(prices.index).fillna(0.0)
 
     returns = prices.pct_change().fillna(0.0)
 
-    # On applique la position connue au début de la période
+    # Apply the position known at the beginning of the period
     strategy_returns = position.shift(1).fillna(0.0) * returns
 
     equity_curve = (1 + strategy_returns).cumprod()
@@ -46,7 +47,7 @@ def _compute_equity_curve_from_position(prices: pd.Series, position: pd.Series) 
 
 def buy_and_hold(prices: pd.Series) -> pd.DataFrame:
     """
-    Stratégie Buy & Hold : on est investi à 100% dès le début et jusqu'à la fin.
+    Buy & Hold strategy: fully invested from start to end.
     """
     prices = _to_series(prices)
     position = pd.Series(1.0, index=prices.index, name="position")
@@ -59,19 +60,19 @@ def moving_average_crossover(
     long_window: int = 200,
 ) -> pd.DataFrame:
     """
-    Stratégie Moving Average Crossover :
-    - On achète (position = 1) quand la moyenne courte > moyenne longue
-    - On sort du marché (position = 0) sinon.
+    Moving Average Crossover strategy:
+    - Buy (position = 1) when short MA > long MA
+    - Exit the market (position = 0) otherwise.
     """
     prices = _to_series(prices).sort_index()
 
     if short_window >= long_window:
-        raise ValueError("short_window doit être strictement inférieur à long_window")
+        raise ValueError("short_window must be strictly lower than long_window")
 
     ma_short = prices.rolling(window=short_window).mean()
     ma_long = prices.rolling(window=long_window).mean()
 
-    # ma_short et ma_long sont des Series ici
+    # ma_short and ma_long are Series
     signal = (ma_short > ma_long).astype(float)
     signal = _to_series(signal)
     signal.name = "position"
@@ -82,44 +83,46 @@ def moving_average_crossover(
 
     return df
 
+
 # =====================================================================
-# 3) STRATÉGIE REGIME SWITCHING : Trend-Following + Mean-Reversion
+# 3) REGIME SWITCHING STRATEGY: Trend-Following + Mean-Reversion
 # =====================================================================
 
 # ---------------------------------------------------------------------
-# A. CALCULS UTILITAIRES : volatilité, MA, z-score
+# A. UTILITY COMPUTATIONS: volatility, MA, z-score
 # ---------------------------------------------------------------------
 
 def _rolling_volatility(returns: pd.Series, window: int) -> pd.Series:
     """
-    Volatilité mobile simple (écart-type des rendements).
+    Simple rolling volatility (standard deviation of returns).
     """
     return returns.rolling(window=window).std()
 
 
 def _moving_average(prices: pd.Series, window: int) -> pd.Series:
     """
-    Moyenne mobile simple.
+    Simple moving average.
     """
     return prices.rolling(window=window).mean()
 
 
 def _z_score(prices: pd.Series, window: int) -> tuple[pd.Series, pd.Series, pd.Series]:
     """
-    Retourne (mu, sigma, zscore) pour le mean reversion.
+    Return (mu, sigma, z-score) for mean reversion.
     """
     mu = prices.rolling(window).mean()
     sigma = prices.rolling(window).std()
     z = (prices - mu) / sigma
     return mu, sigma, z
 
+
 # ---------------------------------------------------------------------
-# B. SIGNALS : Trend-Following et Mean-Reversion
+# B. SIGNALS: Trend-Following and Mean-Reversion
 # ---------------------------------------------------------------------
 
 def _trend_signal(prices: pd.Series, ma_window: int) -> tuple[pd.Series, pd.Series]:
     """
-    Trend-following : long si prix > MA, short si prix < MA.
+    Trend-following: long if price > MA, short if price < MA.
     """
     ma = _moving_average(prices, ma_window)
     sig = pd.Series(0, index=prices.index, dtype=float)
@@ -130,7 +133,7 @@ def _trend_signal(prices: pd.Series, ma_window: int) -> tuple[pd.Series, pd.Seri
 
 def _mean_reversion_signal(prices: pd.Series, mr_window: int, z_threshold: float):
     """
-    Mean-Reversion : long si zscore < -seuil, short si zscore > +seuil.
+    Mean-reversion: long if z-score < -threshold, short if z-score > +threshold.
     """
     mu, sigma, z = _z_score(prices, mr_window)
     sig = pd.Series(0, index=prices.index, dtype=float)
@@ -138,17 +141,20 @@ def _mean_reversion_signal(prices: pd.Series, mr_window: int, z_threshold: float
     sig[z > +z_threshold] = -1.0
     return sig, mu, sigma, z
 
+
 # ---------------------------------------------------------------------
-# C. DÉTECTION DE RÉGIME (Volatilité court terme vs long terme)
+# C. REGIME DETECTION (short-term vs long-term volatility)
 # ---------------------------------------------------------------------
 
-def _detect_regime(returns: pd.Series,
-                   vol_short_window: int,
-                   vol_long_window: int,
-                   alpha: float) -> pd.Series:
+def _detect_regime(
+    returns: pd.Series,
+    vol_short_window: int,
+    vol_long_window: int,
+    alpha: float,
+) -> pd.Series:
     """
-    Régime = 'TREND' si vol_short > alpha * vol_long
-           = 'MR' sinon.
+    Regime = 'TREND' if vol_short > alpha * vol_long
+           = 'MR' otherwise.
     """
     vol_short = _rolling_volatility(returns, vol_short_window)
     vol_long = _rolling_volatility(returns, vol_long_window)
@@ -160,43 +166,46 @@ def _detect_regime(returns: pd.Series,
 
 
 # ---------------------------------------------------------------------
-# D. COMBINAISON DES RÉGIMES
+# D. REGIME COMBINATION
 # ---------------------------------------------------------------------
 
-def _combine_signals(regime: pd.Series,
-                     trend_sig: pd.Series,
-                     mr_sig: pd.Series) -> pd.Series:
+def _combine_signals(
+    regime: pd.Series,
+    trend_sig: pd.Series,
+    mr_sig: pd.Series,
+) -> pd.Series:
     """
-    Combine les deux signaux selon le régime.
+    Combine both signals depending on the detected regime.
     """
     pos = pd.Series(0.0, index=regime.index)
     pos[regime == "TREND"] = trend_sig[regime == "TREND"]
     pos[regime == "MR"] = mr_sig[regime == "MR"]
     return pos
 
+
 # ---------------------------------------------------------------------
-# E. STRATÉGIE FINALE : Trend + Mean Reversion (Regime Switching)
+# E. FINAL STRATEGY: Trend + Mean Reversion (Regime Switching)
 # ---------------------------------------------------------------------
 
 def regime_switch_trend_meanrev(
     prices: pd.Series,
-    vol_short_window: int = 20,     # volatilité court terme
-    vol_long_window: int = 100,     # volatilité long terme
-    alpha: float = 1.0,              # seuil de changement de régime
-    trend_ma_window: int = 50,       # fenêtre trend-following
-    mr_window: int = 20,             # fenêtre MR
-    z_threshold: float = 1.0,        # seuil MR
+    vol_short_window: int = 20,      # short-term volatility
+    vol_long_window: int = 100,      # long-term volatility
+    alpha: float = 1.0,              # regime change threshold
+    trend_ma_window: int = 50,       # trend-following window
+    mr_window: int = 20,             # mean-reversion window
+    z_threshold: float = 1.0,        # MR threshold
 ) -> pd.DataFrame:
     """
-    Stratégie Regime Switching :
-    - Régime TREND : on suit la tendance (long ou short)
-    - Régime MR    : mean reversion (contrariant)
+    Regime Switching strategy:
+    - TREND regime: trend-following (long or short)
+    - MR regime   : mean reversion (contrarian)
     """
 
     prices = _to_series(prices).sort_index()
     returns = prices.pct_change().fillna(0.0)
 
-    # 1. Régime
+    # 1. Regime detection
     regime, vol_short, vol_long = _detect_regime(
         returns,
         vol_short_window,
@@ -210,13 +219,13 @@ def regime_switch_trend_meanrev(
     # 3. Mean-reversion signal
     mr_sig, mr_mu, mr_sigma, z = _mean_reversion_signal(prices, mr_window, z_threshold)
 
-    # 4. Position finale selon régime
+    # 4. Final position based on regime
     position = _combine_signals(regime, trend_sig, mr_sig)
 
-    # 5. Calcul equity curve (via utilitaire existant)
+    # 5. Equity curve computation (using existing utility)
     df = _compute_equity_curve_from_position(prices, position)
 
-    # 6. Colonnes de debug / analyse
+    # 6. Debug / analysis columns
     df["regime"] = regime
     df["vol_short"] = vol_short
     df["vol_long"] = vol_long
@@ -229,8 +238,9 @@ def regime_switch_trend_meanrev(
 
     return df
 
+
 # =====================================================================
-# 4) EXTRACTION DES TRADES À PARTIR D'UNE SÉRIE DE POSITIONS
+# 4) TRADE EXTRACTION FROM A POSITION SERIES
 # =====================================================================
 
 def extract_trades_from_position(
@@ -238,33 +248,33 @@ def extract_trades_from_position(
     position: pd.Series,
 ) -> pd.DataFrame:
     """
-    À partir d'une série de prix et d'une série de positions (-1, 0, +1),
-    reconstruit l'historique des trades :
+    From a price series and a position series (-1, 0, +1),
+    reconstruct the trade history:
 
     - entry_date
     - exit_date
     - direction (LONG / SHORT)
     - entry_price
     - exit_price
-    - holding_period_bars (nombre de pas de temps)
-    - trade_return (en %)
+    - holding_period_bars (number of time steps)
+    - trade_return (%)
 
-    Hypothèses :
-    - On ouvre un trade quand on passe de 0 à != 0,
-      ou quand on change de signe (ex: +1 -> -1 = close puis open).
-    - On ferme un trade quand on repasse à 0
-      ou quand le signe change.
+    Assumptions:
+    - A trade is opened when position goes from 0 to non-zero,
+      or when the sign changes (e.g. +1 -> -1 = close then open).
+    - A trade is closed when position goes back to 0
+      or when the sign changes.
     """
 
     prices = _to_series(prices).sort_index()
     position = _to_series(position).reindex(prices.index).fillna(0.0)
 
-    # Direction = signe de la position
+    # Direction = sign of the position
     direction = position.apply(lambda x: 0 if x == 0 else (1 if x > 0 else -1))
     prev_direction = direction.shift(1).fillna(0).astype(int)
 
     trades = []
-    open_trade = None  # dict temporaire
+    open_trade = None  # temporary dict
 
     idx = prices.index
 
@@ -273,24 +283,23 @@ def extract_trades_from_position(
         dir_prev = int(prev_direction.loc[t])
         price_now = float(prices.loc[t])
 
-        # --- CAS 1 : ouverture de trade ---
+        # --- CASE 1: open trade ---
         if dir_prev == 0 and dir_now != 0:
-            # on ouvre un nouveau trade
             open_trade = {
                 "entry_date": t,
                 "entry_price": price_now,
                 "direction": "LONG" if dir_now > 0 else "SHORT",
             }
 
-        # --- CAS 2 : fermeture (et éventuellement réouverture) ---
+        # --- CASE 2: close (and possibly reopen) ---
         elif dir_prev != 0:
-            # Si on repasse à 0 OU on change de signe => fermeture du trade en cours
+            # If we go back to 0 or change sign → close current trade
             if dir_now == 0 or dir_now != dir_prev:
                 if open_trade is not None:
                     open_trade["exit_date"] = t
                     open_trade["exit_price"] = price_now
 
-                    # Calcul du rendement du trade
+                    # Compute trade return
                     if open_trade["direction"] == "LONG":
                         tr = open_trade["exit_price"] / open_trade["entry_price"] - 1.0
                     else:  # SHORT
@@ -298,14 +307,16 @@ def extract_trades_from_position(
 
                     open_trade["trade_return"] = tr
                     open_trade["holding_period_bars"] = (
-                        prices.loc[open_trade["entry_date"]:open_trade["exit_date"]].shape[0] - 1
+                        prices.loc[
+                            open_trade["entry_date"]:open_trade["exit_date"]
+                        ].shape[0] - 1
                     )
 
                     trades.append(open_trade)
 
                 open_trade = None
 
-                # Si dir_now != 0, on ouvre un nouveau trade immédiatement
+                # If dir_now != 0, immediately open a new trade
                 if dir_now != 0:
                     open_trade = {
                         "entry_date": t,
@@ -313,9 +324,9 @@ def extract_trades_from_position(
                         "direction": "LONG" if dir_now > 0 else "SHORT",
                     }
 
-        # sinon : dir_prev == dir_now (position stable) -> rien à faire
+        # else: dir_prev == dir_now (stable position) → nothing to do
 
-    # Si un trade reste ouvert à la fin, on le clôture sur le dernier prix
+    # If a trade is still open at the end, close it at the last price
     if open_trade is not None and "exit_date" not in open_trade:
         last_t = idx[-1]
         last_price = float(prices.iloc[-1])
@@ -330,7 +341,9 @@ def extract_trades_from_position(
 
         open_trade["trade_return"] = tr
         open_trade["holding_period_bars"] = (
-            prices.loc[open_trade["entry_date"]:open_trade["exit_date"]].shape[0] - 1
+            prices.loc[
+                open_trade["entry_date"]:open_trade["exit_date"]
+            ].shape[0] - 1
         )
 
         trades.append(open_trade)

@@ -3,7 +3,7 @@ import yfinance as yf
 from datetime import datetime
 from typing import Optional
 
-# Ticker historique pour le CAC 40 (compatibilité avec l'ancienne API)
+# Historical ticker for the CAC 40 (legacy API compatibility)
 CAC40_TICKER = "^FCHI"
 
 
@@ -15,15 +15,15 @@ def load_history(
     intraday_days: int = 5,
 ) -> pd.DataFrame:
     """
-    Charge l'historique d'un actif générique via Yahoo Finance.
+    Load historical data for a generic asset via Yahoo Finance.
 
-    - ticker : symbole Yahoo Finance (ex: "^FCHI", "AAPL", "EURUSD=X").
-    - start / end : dates au format "YYYY-MM-DD" (pour daily/weekly/monthly).
-    - interval : "1d", "1wk", "1mo" pour les données de clôture, ou intraday ("5m", "15m", "60m"...).
-    - intraday_days : pour les intervalles intraday, on utilise 'period=X d' plutôt que start/end.
+    - ticker: Yahoo Finance symbol (e.g. "^FCHI", "AAPL", "EURUSD=X").
+    - start / end: dates in "YYYY-MM-DD" format (for daily/weekly/monthly data).
+    - interval: "1d", "1wk", "1mo" for closing data, or intraday ("5m", "15m", "60m", etc.).
+    - intraday_days: for intraday intervals, use 'period=X d' instead of start/end.
 
-    Remarque :
-    - Pour les intervalles intraday, Yahoo limite la profondeur historique accessible.
+    Note:
+    - For intraday intervals, Yahoo Finance limits the available historical depth.
     """
 
     if end is None:
@@ -32,7 +32,7 @@ def load_history(
     intraday_intervals = {"1m", "2m", "5m", "15m", "30m", "60m", "90m"}
 
     if interval in intraday_intervals:
-        # Pour l'intraday, on doit utiliser period=...
+        # For intraday data, Yahoo requires the use of period=...
         data = yf.download(
             ticker,
             period=f"{intraday_days}d",
@@ -41,7 +41,7 @@ def load_history(
             auto_adjust=False,
         )
     else:
-        # Comportement classique pour 1d / 1wk / 1mo
+        # Standard behavior for 1d / 1wk / 1mo
         data = yf.download(
             ticker,
             start=start,
@@ -53,14 +53,14 @@ def load_history(
 
     if data is None or data.empty:
         raise ValueError(
-            f"Aucune donnée renvoyée par Yahoo Finance pour ticker='{ticker}', interval='{interval}'. "
-            "Vérifie le ticker, l'intervalle, ou réessaie plus tard."
+            f"No data returned by Yahoo Finance for ticker='{ticker}', interval='{interval}'. "
+            "Check the ticker symbol, the interval, or try again later."
         )
 
-
-    # Certaines versions de yfinance renvoient un MultiIndex de colonnes :
-    # par ex. ('Open', '^FCHI'), ('High', '^FCHI'), ...
-    # On aplatit en ne gardant que le premier niveau : "Open", "High", "Low", "Close", ...
+    # Some versions of yfinance return a MultiIndex for columns:
+    # e.g. ('Open', '^FCHI'), ('High', '^FCHI'), ...
+    # Flatten the columns by keeping only the first level:
+    # "Open", "High", "Low", "Close", ...
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = [col[0] for col in data.columns]
 
@@ -70,7 +70,6 @@ def load_history(
     return data
 
 
-
 def load_cac40_history(
     start: Optional[str] = None,
     end: Optional[str] = None,
@@ -78,8 +77,8 @@ def load_cac40_history(
     intraday_days: int = 5,
 ) -> pd.DataFrame:
     """
-    Wrapper historique pour le CAC 40, conservé pour compatibilité.
-    Utilise désormais la fonction générique load_history().
+    Historical wrapper for the CAC 40, kept for compatibility.
+    Now relies on the generic load_history() function.
     """
     return load_history(
         ticker=CAC40_TICKER,
@@ -92,10 +91,10 @@ def load_cac40_history(
 
 def get_last_cac40_close() -> float:
     """
-    Renvoie le dernier cours de clôture du CAC 40.
-    Utilise load_cac40_history() avec interval '1d'.
+    Return the latest closing price of the CAC 40.
+    Uses load_cac40_history() with a '1d' interval.
     """
     data = load_cac40_history(interval="1d")
     if data.empty:
-        raise ValueError("Aucune donnée retournée pour le CAC 40.")
+        raise ValueError("No data returned for the CAC 40.")
     return float(data["Close"].iloc[-1])

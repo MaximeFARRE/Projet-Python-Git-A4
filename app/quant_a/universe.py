@@ -1,9 +1,9 @@
 """
-Définition de l'univers d'actifs utilisable par le Compte A (et réutilisable par le Compte B).
+Definition of the asset universe usable by Quant A (and reusable by Quant B).
 
-Structure :
-- par catégorie (indices, forex, actions, matières premières, ...),
-- chaque actif contient au minimum un nom lisible et un ticker Yahoo Finance.
+Structure:
+- grouped by category (indices, forex, equities, commodities, ...),
+- each asset contains at least a readable name and a Yahoo Finance ticker.
 """
 
 from dataclasses import dataclass
@@ -12,12 +12,12 @@ from typing import Dict, List
 
 @dataclass
 class Asset:
-    name: str        # Nom lisible ("CAC 40", "EUR/USD", "Apple")
-    ticker: str      # Ticker Yahoo Finance ("^FCHI", "EURUSD=X", "AAPL")
-    asset_class: str # Classe d'actif ("Indices", "Forex", ...)
+    name: str        # Readable name ("CAC 40", "EUR/USD", "Apple")
+    ticker: str      # Yahoo Finance ticker ("^FCHI", "EURUSD=X", "AAPL")
+    asset_class: str # Asset class ("Indices", "Forex", ...)
 
 
-# Univers d'actifs de base : à étendre au besoin
+# Base asset universe: extend as needed
 ASSET_UNIVERSE: Dict[str, List[Asset]] = {
     "Indices": [
         Asset(name="CAC 40", ticker="^FCHI", asset_class="Indices"),
@@ -29,36 +29,36 @@ ASSET_UNIVERSE: Dict[str, List[Asset]] = {
         Asset(name="GBP/USD", ticker="GBPUSD=X", asset_class="Forex"),
         Asset(name="USD/JPY", ticker="JPY=X", asset_class="Forex"),
     ],
-    "Actions": [
-        Asset(name="TotalEnergies (Paris)", ticker="TTE.PA", asset_class="Actions"),
-        Asset(name="LVMH (Paris)", ticker="MC.PA", asset_class="Actions"),
-        Asset(name="Apple (US)", ticker="AAPL", asset_class="Actions"),
-        Asset(name="Microsoft (US)", ticker="MSFT", asset_class="Actions"),
+    "Equities": [
+        Asset(name="TotalEnergies (Paris)", ticker="TTE.PA", asset_class="Equities"),
+        Asset(name="LVMH (Paris)", ticker="MC.PA", asset_class="Equities"),
+        Asset(name="Apple (US)", ticker="AAPL", asset_class="Equities"),
+        Asset(name="Microsoft (US)", ticker="MSFT", asset_class="Equities"),
     ],
-    "Matières premières": [
-        Asset(name="Or (Gold futures)", ticker="GC=F", asset_class="Matières premières"),
-        Asset(name="Pétrole WTI", ticker="CL=F", asset_class="Matières premières"),
+    "Commodities": [
+        Asset(name="Gold (futures)", ticker="GC=F", asset_class="Commodities"),
+        Asset(name="WTI Crude Oil", ticker="CL=F", asset_class="Commodities"),
     ],
 }
 
 
 def get_asset_classes() -> List[str]:
     """
-    Renvoie la liste des classes d'actifs (Indices, Forex, Actions, ...).
+    Return the list of available asset classes (Indices, Forex, Equities, ...).
     """
     return list(ASSET_UNIVERSE.keys())
 
 
 def get_assets_by_class(asset_class: str) -> List[Asset]:
     """
-    Renvoie la liste des actifs pour une classe donnée.
+    Return the list of assets for a given asset class.
     """
     return ASSET_UNIVERSE.get(asset_class, [])
 
 
 def get_default_asset() -> Asset:
     """
-    Actif par défaut (peut être utilisé pour initialiser l'UI).
-    Par défaut : CAC 40.
+    Default asset (can be used to initialize the UI).
+    Default: CAC 40.
     """
     return ASSET_UNIVERSE["Indices"][0]

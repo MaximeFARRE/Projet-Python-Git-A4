@@ -1,4 +1,3 @@
-# app/quant_b/backtest.py
 from __future__ import annotations
 
 import numpy as np
@@ -23,18 +22,18 @@ def apply_rebalance(weights_df: pd.DataFrame, rebalance: str | None) -> pd.DataF
 
     w = weights_df.copy().astype(float)
 
-    # normalise (somme=1 ou 0 si cash)
+    # normalise (sum=1 or 0 if cash)
     row_sum = w.sum(axis=1)
     w = w.div(row_sum.replace(0.0, np.nan), axis=0).fillna(0.0)
 
-    # ✅ si pas de rebal : juste hold
+    # ✅ if not rebal : juste hold
     if rebalance is None:
         return w.ffill().fillna(0.0)
 
-    # ✅ ICI freq est TOUJOURS défini
+    # ✅ here freq is always defined
     freq = _normalize_rebalance_freq(rebalance)
 
-    # ✅ dates de rebal = vraies dates de l'index
+    # ✅ rebal dates = true index dates
     rebal_dates = w.groupby(pd.Grouper(freq=freq)).head(1).index
 
     w2 = w.copy()
@@ -54,28 +53,29 @@ def compute_portfolio_value_from_weights(
     base: float = 100.0,
 ) -> pd.Series:
     """
-    Calcule la valeur portefeuille (base 100) à partir:
+    Computes the portfolio value (base 100) from:
     - prices: DataFrame (dates x tickers)
-    - weights_df: DataFrame (dates x tickers), poids potentiellement dynamiques
-    - rebalance: "D","W","M" ou None (applique un "hold" entre rebal)
+    - weights_df: DataFrame (dates x tickers), potentially dynamic weights
+    - rebalance: "D", "W", "M", or None (applies a "hold" between rebalancing dates)
+
     """
     if prices is None or prices.empty:
-        raise ValueError("prices vide.")
+        raise ValueError("prices empty.")
     if weights_df is None or weights_df.empty:
-        raise ValueError("weights_df vide.")
+        raise ValueError("weights_df empty.")
 
-    # aligne colonnes et index
+    # aligns columns and index
     common_cols = [c for c in prices.columns if c in weights_df.columns]
     if len(common_cols) < 1:
-        raise ValueError("Aucune colonne commune entre prices et weights_df.")
+        raise ValueError("No common column between prices and weights_df.")
 
     p = prices[common_cols].copy().dropna()
     w = weights_df[common_cols].copy()
 
-    # aligne index
+    # align index
     w = w.reindex(p.index).ffill().fillna(0.0)
 
-    # applique rebalancing
+    # apply rebalancing
     w = apply_rebalance(w, rebalance=rebalance)
 
     # log returns
@@ -90,7 +90,7 @@ def compute_portfolio_value_from_weights(
 
 def compute_turnover(weights_df: pd.DataFrame) -> pd.Series:
     """
-    Turnover simple : 0.5 * sum(|w_t - w_{t-1}|) par date.
+    Simple turnover  : 0.5 * sum(|w_t - w_{t-1}|) per date.
     """
     if weights_df is None or weights_df.empty:
         return pd.Series(dtype=float)

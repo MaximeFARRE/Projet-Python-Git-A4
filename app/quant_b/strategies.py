@@ -238,3 +238,22 @@ def compute_strategy_weights(
         )
 
     raise ValueError(f"Unknown strategy: {strategy}")
+
+def _signals_to_inverse_vol_weights(
+    prices: pd.DataFrame,
+    signals: pd.DataFrame,
+    vol_window: int = 20,
+    eps: float = 1e-12,
+) -> pd.DataFrame:
+    """
+    Inverse-volatility allocation across active assets (signals=1).
+    w_i(t) ∝ signal_i(t) * 1/vol_i(t)
+    """
+    rets = np.log(prices / prices.shift(1)).fillna(0.0)
+    vol = rets.rolling(vol_window).std().replace(0.0, np.nan)
+
+    inv_vol = 1.0 / (vol + eps)
+    raw = signals.astype(float) * inv_vol
+    row_sum = raw.sum(axis=1).replace(0.0, np.nan)
+    w = raw.div(row_sum, axis=0).fillna(0.0)
+    return w

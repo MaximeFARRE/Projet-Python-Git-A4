@@ -4,7 +4,7 @@ import numpy as np
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """
-    Calcule les rendements logarithmiques à partir des prix.
+    Compute logarithmic returns from price data.
     """
     returns = np.log(prices / prices.shift(1))
     return returns.dropna()
@@ -12,11 +12,11 @@ def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
 
 def normalize_weights(weights: dict) -> dict:
     """
-    Normalise les poids pour que la somme soit égale à 1.
+    Normalize weights so that their sum equals 1.
     """
     total = sum(weights.values())
     if total == 0:
-        raise ValueError("La somme des poids ne peut pas être nulle.")
+        raise ValueError("The sum of weights cannot be zero.")
     return {k: v / total for k, v in weights.items()}
 
 
@@ -27,8 +27,8 @@ def compute_portfolio_value(
     base: float = 100.0,
 ) -> pd.Series:
     """
-    Calcule la valeur cumulée d'un portefeuille multi-actifs.
-    rebalance : 'D', 'W', 'M' ou None
+    Compute the cumulative value of a multi-asset portfolio.
+    rebalance: 'D', 'W', 'M', or None
     """
     weights = normalize_weights(weights)
 
@@ -41,19 +41,24 @@ def compute_portfolio_value(
     )
 
     if rebalance is None:
-        weights_df.iloc[0] = list(weights.values())
+        # Always initialize at the first observation
+        weights_df.iloc[0] = [weights[c] for c in weights_df.columns]
         weights_df = weights_df.ffill()
     else:
-        # Normalisation de la fréquence pour pandas (évite le warning)
         pandas_rebalance = rebalance
         if rebalance == "M":
             pandas_rebalance = "ME"
-        rebalance_dates = returns.resample(pandas_rebalance).first().index
-        for date in rebalance_dates:
-            if date in weights_df.index:
-                weights_df.loc[date] = list(weights.values())
-        weights_df = weights_df.ffill()
 
+        # ✅ rebalance dates = first actual dates present in the index (not missing calendar dates)
+        rebal_idx = returns.groupby(pd.Grouper(freq=pandas_rebalance)).head(1).index
+
+        # ✅ Always initialize at the first observation
+        weights_df.iloc[0] = [weights[c] for c in weights_df.columns]
+
+        for dt in rebal_idx:
+            weights_df.loc[dt] = [weights[c] for c in weights_df.columns]
+
+        weights_df = weights_df.ffill()
 
     portfolio_returns = (weights_df * returns).sum(axis=1)
     portfolio_value = base * np.exp(portfolio_returns.cumsum())

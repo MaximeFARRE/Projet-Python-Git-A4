@@ -66,12 +66,16 @@ def _normalize_prices(prices: pd.DataFrame, base: float = 100.0) -> pd.DataFrame
     return base * (prices / prices.iloc[0])
 
 
-
 def _plot_prices_and_portfolio(norm_prices: pd.DataFrame, portfolio_value: pd.Series) -> go.Figure:
     fig = go.Figure()
 
     for col in norm_prices.columns:
-        fig.add_trace(go.Scatter(x=norm_prices.index, y=norm_prices[col], mode="lines", name=f"{col} (base100)"))
+        fig.add_trace(go.Scatter(
+            x=norm_prices.index,
+            y=norm_prices[col],
+            mode="lines",
+            name=f"{col} (base100)",
+        ))
 
     fig.add_trace(go.Scatter(
         x=portfolio_value.index,
@@ -82,10 +86,10 @@ def _plot_prices_and_portfolio(norm_prices: pd.DataFrame, portfolio_value: pd.Se
     ))
 
     fig.update_layout(
-        title="Actifs (base 100) vs Valeur du portefeuille",
+        title="Assets (base 100) vs Portfolio Value",
         xaxis_title="Date",
-        yaxis_title="Niveau (base 100)",
-        legend_title="Séries",
+        yaxis_title="Level (base 100)",
+        legend_title="Series",
         height=520,
     )
     return fig
@@ -102,7 +106,32 @@ def _plot_corr_heatmap(corr: pd.DataFrame) -> go.Figure:
             colorbar=dict(title="Corr"),
         )
     )
-    fig.update_layout(title="Matrice de corrélation (rendements)", height=420)
+    fig.update_layout(title="Correlation matrix (returns)", height=420)
+    return fig
+
+def _plot_cov_heatmap(cov: pd.DataFrame) -> go.Figure:
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=cov.values,
+            x=cov.columns,
+            y=cov.index,
+            colorbar=dict(title="Cov (ann.)"),
+        )
+    )
+    fig.update_layout(title="Annualized covariance matrix (returns)", height=420)
+    return fig
+
+
+def _plot_dist_heatmap(dist: pd.DataFrame) -> go.Figure:
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=dist.values,
+            x=dist.columns,
+            y=dist.index,
+            colorbar=dict(title="Distance"),
+        )
+    )
+    fig.update_layout(title="Distance matrix (correlation-based)", height=420)
     return fig
 
 

@@ -66,6 +66,51 @@ def _normalize_prices(prices: pd.DataFrame, base: float = 100.0) -> pd.DataFrame
     """
     return base * (prices / prices.iloc[0])
 
+def _extract_close_matrix(prices: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
+    """
+    Transforme un DataFrame OHLCV multi-actifs (souvent MultiIndex) en matrice
+    de prix de clôture: colonnes = tickers, valeurs = Close (ou Adj Close).
+    """
+
+    if isinstance(prices.columns, pd.MultiIndex):
+        # Cas typique yfinance : niveaux = (field, ticker) OU (ticker, field)
+        levels = [list(map(str, prices.columns.get_level_values(i).unique())) for i in range(prices.columns.nlevels)]
+
+        # On essaie de détecter quel niveau contient OHLCV
+        ohlcv_fields = {"Open", "High", "Low", "Close", "Adj Close", "Volume"}
+
+        # Si level 0 = fields
+        if any(f in ohlcv_fields for f in levels[0]):
+            field_level, ticker_level = 0, 1
+        # Si level 1 = fields
+        elif prices.columns.nlevels > 1 and any(f in ohlcv_fields for f in levels[1]):
+            ticker_level, field_level = 0, 1
+        else:
+            # fallback : on suppose (field, ticker)
+            field_level, ticker_level = 0, 1
+
+        # Choix du champ prix
+        field_choice = "Adj Close" if "Adj Close" in levels[field_level] else "Close"
+
+        # On garde uniquement les tickers choisis
+        if field_level == 0:
+            out = prices.loc[:, (field_choice, tickers)]
+            out.columns = out.columns.get_level_values(ticker_level)
+        else:
+            out = prices.loc[:, (tickers, field_choice)]
+            out.columns = out.columns.get_level_values(ticker_level)
+
+        return out
+
+    # Cas colonnes "plates" mais dupliquées: on ne peut pas deviner le mapping sans info.
+    # On renvoie tel quel (mais ça plantera si on affiche). Mieux: lever une erreur explicite.
+    if prices.columns.duplicated().any():
+        raise ValueError(
+            "prices a des colonnes dupliquées (format OHLCV aplati). "
+            "Ton loader doit renvoyer un MultiIndex OU tu dois renvoyer directement une matrice de Close."
+        )
+
+    return prices[tickers]
 
 def _plot_prices_and_portfolio(norm_prices: pd.DataFrame, portfolio_value: pd.Series) -> go.Figure:
     fig = go.Figure()

@@ -1,4 +1,4 @@
-# 📈 Quantitative Finance Dashboard  
+# Quantitative Finance Dashboard  
 **Python · Git · Linux for Finance**
 
 ## Overview
@@ -30,7 +30,7 @@ Both modules are fully integrated into a **single unified dashboard**.
 
 ## Key Features
 
-### 🔄 Data & Infrastructure
+### Data & Infrastructure
 - Market data retrieved from a **dynamic public API** (via Quant A data loader, e.g. *yfinance*)
 - Automatic data refresh (approximately every 5 minutes)
 - Robust data handling (OHLCV formats, MultiIndex support, missing data)

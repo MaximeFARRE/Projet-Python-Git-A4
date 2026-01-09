@@ -30,10 +30,17 @@ def _signals_to_equal_weights(signals: pd.DataFrame) -> pd.DataFrame:
     w = w.div(row_sum, axis=0).fillna(0.0)
     return w
 
-
 def _normalize_weight_dict(weights: Dict[str, float], tickers: list[str]) -> Dict[str, float]:
     """Normalize a weight dict over the provided ticker list."""
     total = sum(float(weights.get(t, 0.0)) for t in tickers)
     if total == 0:
         raise ValueError("The sum of weights cannot be zero.")
     return {t: float(weights.get(t, 0.0)) / total for t in tickers}
+
+@dataclass
+class StrategyResult:
+    """Standard result object for Quant B."""
+    weights: pd.DataFrame         # dates x tickers
+    signals: pd.DataFrame         # dates x tickers (0/1 long-only)
+    details: Dict[str, pd.DataFrame]  # ticker -> Quant A df (useful for debug/plots)
+

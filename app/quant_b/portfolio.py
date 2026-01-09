@@ -44,11 +44,16 @@ def compute_portfolio_value(
         weights_df.iloc[0] = list(weights.values())
         weights_df = weights_df.ffill()
     else:
-        rebalance_dates = returns.resample(rebalance).first().index
+        # Normalisation de la fréquence pour pandas (évite le warning)
+        pandas_rebalance = rebalance
+        if rebalance == "M":
+            pandas_rebalance = "ME"
+        rebalance_dates = returns.resample(pandas_rebalance).first().index
         for date in rebalance_dates:
             if date in weights_df.index:
                 weights_df.loc[date] = list(weights.values())
         weights_df = weights_df.ffill()
+
 
     portfolio_returns = (weights_df * returns).sum(axis=1)
     portfolio_value = base * np.exp(portfolio_returns.cumsum())

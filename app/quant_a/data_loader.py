@@ -61,8 +61,29 @@ def load_history(
     # Certaines versions de yfinance renvoient un MultiIndex de colonnes :
     # par ex. ('Open', '^FCHI'), ('High', '^FCHI'), ...
     # On aplatit en ne gardant que le premier niveau : "Open", "High", "Low", "Close", ...
+    # Certaines versions de yfinance renvoient un MultiIndex de colonnes :
+    # ex multi-tickers : ('Close','AAPL'), ('Close','MSFT'), ...
     if isinstance(data.columns, pd.MultiIndex):
-        data.columns = [col[0] for col in data.columns]
+        # Si on a demandé plusieurs tickers, on renvoie une matrice de PRIX (Close / Adj Close)
+        is_multi_tickers = isinstance(ticker, (list, tuple, set))
+
+        if is_multi_tickers:
+            # Choix du champ prix : Adj Close si dispo sinon Close
+            field = "Adj Close" if "Adj Close" in data.columns.get_level_values(0) else "Close"
+
+            # data[field] => colonnes = tickers (AAPL, MSFT, ...)
+            prices = data[field].copy()
+
+            # sécurité : enlève colonnes dupliquées + tri
+            prices = prices.loc[:, ~prices.columns.duplicated()]
+            prices.index = pd.to_datetime(prices.index)
+            prices = prices.sort_index()
+
+            return prices
+        else:
+            # Cas 1 ticker : on aplatit comme avant
+            data.columns = [col[0] for col in data.columns]
+
 
     data.index = pd.to_datetime(data.index)
     data = data.sort_index()

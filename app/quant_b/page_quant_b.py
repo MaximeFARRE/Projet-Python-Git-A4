@@ -239,19 +239,16 @@ def render():
     #     prices = prices[["Close"]]
 
     # -------- Portfolio calc --------
-    # On garde uniquement les colonnes demandées (si le loader renvoie plus)
-    cols = [c for c in prices.columns if c in tickers]
-    if len(cols) < 3:
-        st.error(
-            "Je ne retrouve pas les tickers sélectionnés dans les colonnes de `prices`.\n"
-            "➡️ Affiche `prices.columns` et adapte la sélection (souvent il faut extraire Close)."
-        )
-        st.write(prices.head())
+    try:
+        prices = _extract_close_matrix(prices, tickers)
+    except Exception as e:
+        st.error(f"Impossible d'extraire les Close/Adj Close : {e}")
+        st.write("Colonnes reçues :")
         st.write(prices.columns)
         st.stop()
 
-    prices = prices[cols].dropna(how="all")
-    prices = prices.dropna()  # simple: on garde les dates complètes
+    prices = prices.dropna(how="all").dropna()
+
 
     if len(prices) < 10:
         st.warning("Peu de données chargées (moins de 10 points). Les stats peuvent être peu fiables.")

@@ -1,0 +1,19 @@
+===== RAPPORT QUANT B DU 2026-01-08 =====
+Heure de génération : 2026-01-09 21:33:51
+
+Actifs : ^FCHI, ^GDAXI, ^GSPC
+Intervalle : 1d | Rebalancement (rapport) : M
+
+--- PORTEFEUILLE (base 100) ---
+Valeur (open proxy) : 168.47
+Valeur (close)      : 168.47
+Rendement du jour   : 0.05 %
+Vol annualisée (90j): 9.33 %
+Max drawdown (90j)  : -4.09 %
+
+--- TOP ACTIFS (perf jour) ---
+^FCHI: 0.12 % | vol 10.21 % | mdd -3.74 %
+^GDAXI: 0.02 % | vol 12.44 % | mdd -5.31 %
+^GSPC: 0.01 % | vol 11.73 % | mdd -5.11 %
+
+Source : Yahoo Finance (yfinance)

@@ -1,0 +1,21 @@
+===== RAPPORT QUOTIDIEN DU 2026-01-08 =====
+Heure de génération du rapport : 2026-01-09 21:33:51
+
+Actif : CAC 40 (^FCHI)
+
+--- JOURNÉE ---
+Prix d'ouverture : 8210.90
+Prix de clôture : 8243.47
+Rendement du jour : 0.12 %
+
+--- PÉRIODES EN COURS ---
+Performance semaine en cours : 0.39 %
+Performance mois en cours   : 0.59 %
+Performance YTD (année en cours) : 0.59 %
+
+--- RISQUE (fenêtre 90 jours) ---
+Volatilité annualisée : 10.00 %
+Max drawdown          : -3.74 %
+
+Source des données : Yahoo Finance via yfinance
+Généré automatiquement par app.quant_a.daily_report

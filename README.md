@@ -156,8 +156,7 @@ PROJET/
 │   └── __init__.py
 │
 ├── reports/                     # Daily reports generated via cron
-│   ├── daily_report_YYYY-MM-DD.txt
-│   └── ...
+│   ├── ...
 │
 ├── main.py                      # Streamlit application entry point
 ├── .gitignore

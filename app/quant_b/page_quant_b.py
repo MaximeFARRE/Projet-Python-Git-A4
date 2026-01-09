@@ -317,3 +317,149 @@ def render():
                 strategy_params["alpha"] = st.slider("Alpha", 0.1, 5.0, 1.0, 0.1, key="qb_rs_a")
                 strategy_params["z_threshold"] = st.slider("Z threshold", 0.1, 5.0, 1.0, 0.1, key="qb_rs_z")
                 strategy_params["long_only"] = st.checkbox("Long-only", value=True, key="qb_rs_lo")
+
+    # =========================
+    # Load data
+    # =========================
+
+    now = dt.datetime.now()
+
+    # cache keys
+    if "qb_cached_prices" not in st.session_state:
+        st.session_state.qb_cached_prices = None
+    if "qb_last_load_time" not in st.session_state:
+        st.session_state.qb_last_load_time = None
+    if "qb_last_interval" not in st.session_state:
+        st.session_state.qb_last_interval = None
+    if "qb_last_tickers" not in st.session_state:
+        st.session_state.qb_last_tickers = None
+
+    need_reload = False
+    tickers_key = "|".join(tickers)
+
+    if st.session_state.qb_cached_prices is None or st.session_state.qb_cached_prices.empty:
+        need_reload = True
+    elif (
+        st.session_state.qb_last_interval != interval
+        or st.session_state.qb_last_tickers != tickers_key
+    ):
+        need_reload = True
+    else:
+        last_time = st.session_state.qb_last_load_time
+        if last_time is None or (now - last_time).total_seconds() > 300:
+            need_reload = True
+
+    if need_reload:
+        with st.spinner("Loading data..."):
+
+            end = dt.date.today().strftime("%Y-%m-%d")
+
+            if interval == "1d":
+                # ✅ FORCE enough history for MA / Regime
+                start = (dt.date.today() - dt.timedelta(days=365 * 5)).strftime("%Y-%m-%d")
+                intraday_days = 5
+            else:
+                start = None
+                intraday_days = 180
+
+            prices = load_prices_matrix(
+                load_history,
+                tickers=tickers,
+                interval=interval,
+                intraday_days=intraday_days,
+                start=start,
+                end=end,
+            )
+
+    else:
+        prices = st.session_state.qb_cached_prices
+
+    if not isinstance(prices, pd.DataFrame) or prices.empty:
+        st.error("The loader returned an empty/invalid DataFrame.")
+        st.stop()
+
+    prices = prices.dropna(how="all").dropna()
+    if len(prices.columns) < 3:
+        st.error("Not enough valid assets after cleaning (≥3 required).")
+        st.stop()
+
+    # =========================
+    # Portfolio calc
+    # =========================
+    if mode == "Fixed weights":
+        portfolio_value = compute_portfolio_value(prices, weights, rebalance=rebalance, base=100.0)
+
+        weights_used_df = pd.DataFrame(index=prices.index, columns=prices.columns, data=np.nan)
+        weights_used_df.iloc[0] = [weights.get(c, 0.0) for c in prices.columns]
+        weights_used_df = weights_used_df.ffill().fillna(0.0)
+
+    else:
+        # ✅ STRATEGIES Quant A → Quant B (MA Crossover, Regime Switch, Buy&Hold)
+        res = compute_strategy_weights(
+            prices=prices,
+            strategy=strategy_name,
+            params=strategy_params,
+            base_weights=weights if strategy_name == "Buy & Hold" else None,
+        )
+
+        weights_used_df = res.weights
+        portfolio_value = compute_portfolio_value_from_weights(
+            prices, weights_used_df, rebalance=rebalance, base=100.0
+        )
+
+    turnover = compute_turnover(weights_used_df)
+
+    # =========================
+    # Metrics
+    # =========================
+    asset_returns = compute_returns(prices)
+    portfolio_returns = np.log(portfolio_value / portfolio_value.shift(1)).dropna()
+
+    m = portfolio_metrics(
+        asset_returns=asset_returns,
+        portfolio_returns=portfolio_returns,
+        portfolio_value=portfolio_value,
+        interval=interval,
+    )
+    # =========================
+    # Diversification KPIs (needed by UI)
+    # =========================
+    corr = m["correlation"]
+    corr_vals = corr.values.copy()
+
+    # average pairwise correlations (off-diagonal)
+    mask = ~np.eye(corr_vals.shape[0], dtype=bool)
+    avg_pairwise_corr = float(np.nanmean(corr_vals[mask])) if corr_vals.size > 1 else 1.0
+
+    # last used weights
+    last_weights = weights_used_df.iloc[-1].copy()
+
+    # annualized vol per asset (already in m)
+    asset_vols = m["asset_vols_annualized"].reindex(prices.columns).fillna(0.0)
+
+    # annualized portfolio volatility
+    port_vol = float(m["portfolio_vol_annualized"])
+
+    # weighted average vol (proxy for "no diversification")
+    w_aligned = last_weights.reindex(prices.columns).fillna(0.0).astype(float)
+    vol_wavg = float((w_aligned.abs() * asset_vols).sum())
+
+    # "classic" diversification ratio and volatility reduction
+    div_ratio_true = (vol_wavg / port_vol) if port_vol > 0 else float("nan")
+    vol_reduction = (1.0 - port_vol / vol_wavg) if vol_wavg > 0 else float("nan")
+
+    # effective number of assets (weight concentration)
+    w2 = float((w_aligned**2).sum())
+    n_eff = (1.0 / w2) if w2 > 0 else float("nan")
+
+    
+    # =========================
+    # Extra matrices (Cov, Distance) + Risk contributions
+    # =========================
+    ppy = m["periods_per_year"]
+
+    cov_ann = covariance_matrix_annualized(asset_returns, periods_per_year=ppy)
+    dist = correlation_distance_matrix(m["correlation"])
+
+    last_weights = weights_used_df.iloc[-1].copy()
+    rc_pct, rc_abs, port_vol_from_cov = risk_contributions_from_cov(last_weights, cov_ann)

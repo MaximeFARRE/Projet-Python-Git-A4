@@ -1,116 +1,158 @@
-# Quantitative Finance Dashboard  
+# 📈 Quantitative Finance Dashboard  
 **Python · Git · Linux for Finance**
 
-## Overview
+---
 
-This project is a **quantitative finance dashboard** developed as part of the *Python, Git, Linux for Finance* course.  
-It simulates a **professional asset management workflow**, combining real-time data retrieval, quantitative strategies, portfolio backtesting, and interactive visualization.
+## 1. Project Context
 
-The application is built with **Python and Streamlit**, collaboratively developed using **Git/GitHub**, and **deployed on a Linux virtual machine** to ensure continuous availability.
+This project was developed as part of the **Python, Git, Linux for Finance** course.  
+It simulates the work of a **quantitative research team** in an asset management company, whose role is to support portfolio managers with **quantitative tools**.
+
+The objective is to design and deploy a **professional interactive dashboard** able to:
+- retrieve financial market data from a dynamic source (API),
+- implement quantitative strategies and backtesting,
+- simulate multi-asset portfolios,
+- display results and key metrics in a clear and user-friendly way.
+
+The application is built in **Python with Streamlit**, versioned using **Git/GitHub**, and **deployed on a Linux virtual machine** to ensure continuous availability.
 
 ---
 
-## Team & Responsibilities
+## 2. Team & Division of Work
 
-This project was completed by a **two-student team**, with a strict separation of responsibilities:
+This project was completed by **two students**, with a strict separation of responsibilities, as required by the project guidelines.
 
-- **Maxime Farré — Quant A (Single Asset Analysis)**
-  - Univariate strategies and backtesting
-  - Single-asset metrics and visualizations
-  - Strategy logic reused by Quant B
+- **Maxime Farré — Quant A (Single Asset Analysis)**  
+  Responsible for:
+  - single-asset data loading and preprocessing,
+  - implementation of quantitative strategies on one asset,
+  - backtesting logic and performance metrics,
+  - visualization of asset price vs strategy performance.
 
-- **Emilien Combaret — Quant B (Multi-Asset Portfolio)**
-  - Multi-asset portfolio construction
-  - Allocation rules and rebalancing
-  - Portfolio-level metrics, diversification analysis, and UI
+- **Emilien Combaret — Quant B (Multi-Asset Portfolio Analysis)**  
+  Responsible for:
+  - extension to multi-asset portfolios (minimum 3 assets),
+  - portfolio allocation and rebalancing logic,
+  - portfolio-level metrics and diversification analysis,
+  - Streamlit user interface for portfolio configuration and results.
 
-Both modules are fully integrated into a **single unified dashboard**.
-
----
-
-## Key Features
-
-### Data & Infrastructure
-- Market data retrieved from a **dynamic public API** (via Quant A data loader, e.g. *yfinance*)
-- Automatic data refresh (approximately every 5 minutes)
-- Robust data handling (OHLCV formats, MultiIndex support, missing data)
-- Application deployed on a **Linux VM**, designed to run **24/7**
+Both modules are integrated into a **single unified Streamlit application**.
 
 ---
 
-## Quant A — Single Asset Module
+## 3. Data Sources & API
 
-**Focus:** One asset at a time (e.g. equities, FX, commodities)
+Market data is retrieved from a **public financial API** through the Quant A data loader  
+(e.g. *yfinance* or an equivalent public data provider).
 
-**Features:**
-- Backtesting strategies:
-  - Buy & Hold
-  - Moving Average Crossover
-  - Regime Switching (Trend / Mean Reversion)
-- Performance metrics:
-  - Cumulative return
-  - Annualized return & volatility
-  - Sharpe ratio
-  - Maximum drawdown
-- Interactive controls:
-  - Strategy parameters
-  - Time interval selection
-- Main visualization:
-  - Asset price vs strategy cumulative value
+Key characteristics:
+- daily and intraday data (`1d`, `60m`, `15m`, `5m`),
+- OHLCV data handling,
+- support for MultiIndex formats,
+- automatic refresh approximately every 5 minutes,
+- robust handling of missing or invalid data.
 
 ---
 
-## Quant B — Multi-Asset Portfolio Module
+## 4. Quant A — Single Asset Module
 
-**Focus:** Portfolio analysis with **at least 3 assets simultaneously**
+### Objective
+Analyze and backtest **one asset at a time** (equities, FX, commodities, etc.).
 
-**Features:**
-- Portfolio construction:
-  - Fixed weights (equal-weight or custom)
-  - Strategy-driven allocation (signals from Quant A)
-- Allocation rules:
-  - Equal-weight
-  - Inverse volatility
-- Rebalancing frequencies:
-  - Daily, Weekly, Monthly, or None
-- Portfolio metrics:
-  - Correlation and covariance matrices
-  - Portfolio volatility and returns
-  - CAGR, Sharpe ratio, maximum drawdown
-  - Diversification ratio and effective number of assets
-  - Risk contributions by asset
-- Visual analysis:
-  - Individual assets vs portfolio (base 100)
-  - Heatmaps (correlation, covariance, distance)
-- Interactive **Streamlit UI** with tabs:
-  - Overview
-  - Diversification
-  - Details
+### Implemented strategies
+- **Buy & Hold**
+- **Moving Average Crossover**
+- **Regime Switching (Trend / Mean Reversion)**
 
----
+### Metrics
+For each strategy:
+- cumulative return,
+- annualized return,
+- annualized volatility,
+- Sharpe ratio,
+- maximum drawdown.
 
-## Technical Stack
-
-- **Language:** Python 3
-- **Framework:** Streamlit
-- **Libraries:** NumPy, Pandas, Plotly
-- **Data source:** Public market data API (*yfinance* via Quant A loader)
-- **Version control:** Git & GitHub
-- **Deployment:** Linux Virtual Machine
-- **Automation:** Ready for cron-based daily reporting
+### Visualization
+- main chart showing:
+  - raw asset price,
+  - cumulative strategy value (base 100),
+- interactive controls for:
+  - strategy parameters,
+  - data frequency selection.
 
 ---
 
-## Repository Structure
+## 5. Quant B — Multi-Asset Portfolio Module
+
+### Objective
+Extend the analysis to a **portfolio of multiple assets** (at least 3 simultaneously).
+
+### Portfolio construction
+Two portfolio modes are available:
+1. **Fixed weights**
+   - equal-weight,
+   - custom user-defined weights.
+2. **Strategy-based allocation**
+   - portfolio weights derived from Quant A strategy signals.
+
+### Allocation & rebalancing
+- allocation rules:
+  - equal-weight,
+  - inverse volatility,
+- rebalancing frequency:
+  - none,
+  - daily,
+  - weekly,
+  - monthly.
+
+### Portfolio metrics
+The module computes:
+- portfolio value and returns (base 100),
+- annualized volatility and return,
+- CAGR,
+- Sharpe ratio,
+- maximum drawdown,
+- correlation matrix,
+- annualized covariance matrix,
+- diversification ratio,
+- effective number of assets,
+- risk contributions by asset.
+
+### Visualization
+- comparison of individual assets vs portfolio value,
+- correlation, covariance and distance heatmaps,
+- tables of weights, volatilities and risk contributions.
+
+---
+
+## 6. Application Structure
+
+The repository follows the structure below:
 
 ```text
-app/
-├── quant_a/          # Single Asset module (strategies, data loader, metrics)
-├── quant_b/          # Multi-Asset portfolio module
-│   ├── strategies.py
-│   ├── portfolio.py
-│   ├── metrics.py
-│   ├── backtest.py
-│   └── page_quant_b.py
-├── main.py           # Streamlit entry point
+PROJET/
+├── .streamlit/
+│   └── config.toml              # Streamlit configuration
+│
+├── app/
+│   ├── quant_a/                 # Single-asset analysis (Quant A)
+│   │   ├── data_loader.py       # API data retrieval
+│   │   ├── strategies.py        # Single-asset strategies
+│   │   ├── metrics.py           # Performance metrics
+│   │   └── universe.py          # Asset universe definition
+│   │
+│   ├── quant_b/                 # Multi-asset portfolio module (Quant B)
+│   │   ├── backtest.py          # Portfolio backtesting & turnover
+│   │   ├── data_adapter.py      # Adapter to reuse Quant A loader
+│   │   ├── metrics.py           # Portfolio & diversification metrics
+│   │   ├── portfolio.py         # Portfolio valuation logic
+│   │   ├── strategies.py        # Multi-asset strategies
+│   │   └── page_quant_b.py      # Streamlit portfolio page
+│   │
+│   └── __init__.py
+│
+├── reports/                     # Daily reports generated via cron
+├── main.py                      # Streamlit application entry point
+├── .gitignore
+├── todo.txt
 └── README.md

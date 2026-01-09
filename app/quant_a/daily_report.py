@@ -6,6 +6,9 @@ import pandas as pd
 from app.quant_a.data_loader import load_cac40_history
 from app.quant_a.strategies import buy_and_hold
 from app.quant_a.metrics import compute_all_metrics
+from app.quant_a.data_loader import load_history  
+from app.quant_b.data_adapter import load_prices_matrix
+from app.quant_b.backtest import compute_portfolio_value_from_weights
 
 
 def _compute_period_return(prices: pd.Series, start_date: dt.date) -> float:
@@ -166,8 +169,9 @@ def generate_daily_report():
     stats = compute_report_stats(df, vol_window_days=90)
 
     # Création dossier reports/
-    reports_dir = Path("reports")
-    reports_dir.mkdir(exist_ok=True)
+    reports_dir = Path("reports") / "quant_a"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
 
     # Nom du fichier basé sur la date de marché (as_of_date)
     as_of_date = stats["as_of_date"]
@@ -210,7 +214,119 @@ def generate_daily_report():
 
     return filename
 
+def generate_daily_report_quant_b(
+    tickers: list[str],
+    interval: str = "1d",
+    rebalance: str | None = "M",
+):
+    """
+    Génère un rapport quotidien Quant B :
+    - stats par actif (open/close, ret, vol, mdd) via compute_report_stats
+    - stats du portefeuille (valeur base100) via compute_portfolio_value_from_weights
+    """
+
+    today = dt.date.today()
+    end = today.strftime("%Y-%m-%d")
+
+    # pour 1d on force assez d'historique (comme dans ta page Quant B)
+    if interval == "1d":
+        start = (today - dt.timedelta(days=365 * 5)).strftime("%Y-%m-%d")
+        intraday_days = 5
+    else:
+        start = None
+        intraday_days = 180
+
+    # Matrice de prix (Close) multi-actifs
+    prices = load_prices_matrix(
+        load_history,
+        tickers=tickers,
+        interval=interval,
+        intraday_days=intraday_days,
+        start=start,
+        end=end,
+    )
+
+    if prices is None or prices.empty:
+        raise ValueError("Quant B: matrice de prix vide.")
+
+    prices = prices.dropna(how="all").dropna()
+    if prices.shape[1] < 3:
+        raise ValueError("Quant B: ≥3 actifs requis après nettoyage.")
+
+    # Portefeuille simple : égal-pondéré (pour le rapport quotidien)
+    w0 = {c: 1.0 / prices.shape[1] for c in prices.columns}
+    weights_df = pd.DataFrame(index=prices.index, data={c: w0[c] for c in prices.columns})
+
+    portfolio_value = compute_portfolio_value_from_weights(
+        prices=prices,
+        weights_df=weights_df,
+        rebalance=rebalance,
+        base=100.0,
+    )
+
+    # Stats portefeuille (Series -> compute_report_stats sait gérer)
+    stats_port = compute_report_stats(portfolio_value, vol_window_days=90)
+
+    # Stats par actif
+    per_asset_rows = []
+    for col in prices.columns:
+        s = prices[col].astype(float)
+        stt = compute_report_stats(s, vol_window_days=90)
+        per_asset_rows.append({
+            "ticker": col,
+            "close": stt["close_price"],
+            "daily_return_pct": stt["daily_return_pct"],
+            "vol_annual_pct": stt["vol_annual_pct"],
+            "max_drawdown_pct": stt["max_drawdown_pct"],
+        })
+    df_assets = pd.DataFrame(per_asset_rows).sort_values("daily_return_pct", ascending=False)
+
+    # Dossier reports/quant_b
+    reports_dir = Path("reports") / "quant_b"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    as_of_date = stats_port["as_of_date"]
+    export_time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fichier texte
+    filename_txt = reports_dir / f"daily_report_{as_of_date.isoformat()}.txt"
+
+    def fmt_pct(x: float) -> str:
+        return "N/A" if pd.isna(x) else f"{x:.2f} %"
+
+    contenu = (
+        f"===== RAPPORT QUANT B DU {as_of_date.isoformat()} =====\n"
+        f"Heure de génération : {export_time}\n\n"
+        f"Actifs : {', '.join(list(prices.columns))}\n"
+        f"Intervalle : {interval} | Rebalancement (rapport) : {rebalance}\n\n"
+        f"--- PORTEFEUILLE (base 100) ---\n"
+        f"Valeur (open proxy) : {stats_port['open_price']:.2f}\n"
+        f"Valeur (close)      : {stats_port['close_price']:.2f}\n"
+        f"Rendement du jour   : {fmt_pct(stats_port['daily_return_pct'])}\n"
+        f"Vol annualisée (90j): {fmt_pct(stats_port['vol_annual_pct'])}\n"
+        f"Max drawdown (90j)  : {fmt_pct(stats_port['max_drawdown_pct'])}\n\n"
+        f"--- TOP ACTIFS (perf jour) ---\n"
+        + "\n".join([f"{r.ticker}: {fmt_pct(r.daily_return_pct)} | vol {fmt_pct(r.vol_annual_pct)} | mdd {fmt_pct(r.max_drawdown_pct)}"
+                    for r in df_assets.itertuples(index=False)])
+        + "\n\nSource : Yahoo Finance (yfinance)\n"
+    )
+
+    with open(filename_txt, "w", encoding="utf-8") as f:
+        f.write(contenu)
+
+    # Bonus : csv par actif
+    filename_csv = reports_dir / f"daily_report_assets_{as_of_date.isoformat()}.csv"
+    df_assets.to_csv(filename_csv, index=False)
+
+    return filename_txt, filename_csv
 
 if __name__ == "__main__":
-    path = generate_daily_report()
-    print(f"Rapport généré : {path}")
+    a_path = generate_daily_report()
+    print(f"[Quant A] Rapport généré : {a_path}")
+
+    # Ex: tickers par défaut (à adapter à votre universe)
+    tickers = ["^FCHI", "^GDAXI", "^GSPC"]  # CAC40, DAX, S&P500
+    b_txt, b_csv = generate_daily_report_quant_b(tickers=tickers, interval="1d", rebalance="M")
+    print(f"[Quant B] Rapport généré : {b_txt}")
+    print(f"[Quant B] Détails actifs : {b_csv}")
+

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from .ml import predict_next_return_linear, forecast_price_trend
 
 from .data_loader import load_history, load_cac40_history
 from .universe import get_asset_classes, get_assets_by_class, get_default_asset
@@ -384,6 +385,66 @@ def render_quant_a_page():
 
     prices = prices.sort_index()
     prices.name = f"{selected_asset.name} (Close)"
+
+    # ---------- BONUS ML (OPTIONNEL) ----------
+    with st.expander(" ML – Prédiction simple (optionnel)", expanded=False):
+        st.caption(
+            "Objectif : démontrer l'intégration d'un pipeline ML simple dans le dashboard "
+            "(pas d'objectif de performance)."
+        )
+
+        col_ml1, col_ml2 = st.columns(2)
+        with col_ml1:
+            ml_window = st.slider("Fenêtre features (ret/vol)", 10, 120, 20, step=5)
+        with col_ml2:
+            ml_horizon = st.slider("Horizon projection prix (pas de temps)", 5, 60, 20, step=5)
+
+        # Option 1 : prédiction rendement prochain pas
+        try:
+            pred = predict_next_return_linear(prices, window=int(ml_window))
+            pred_pct = pred["pred_next_return_pct"]
+            direction = pred["direction"]
+            r2 = pred["r2_train"]
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Rendement prédit (pas suivant)", "N/A" if pd.isna(pred_pct) else f"{pred_pct:.2f} %")
+            c2.metric("Direction", "N/A" if direction is None else direction)
+            c3.metric("R² (train, indicatif)", "N/A" if pd.isna(r2) else f"{r2:.2f}")
+
+        except Exception as e:
+            st.warning(f"ML rendement: impossible de calculer ({e}).")
+
+        # Option 2 : projection du prix futur (trend)
+        try:
+            fc = forecast_price_trend(prices, horizon_steps=int(ml_horizon), use_log=True)
+            if fc.empty:
+                st.info("Pas assez de données pour projeter le prix.")
+            else:
+                # Affichage Plotly (courbe future pointillée)
+                hist = prices.dropna().astype(float)
+
+                fig_fc = go.Figure()
+                fig_fc.add_trace(go.Scatter(x=hist.index, y=hist.values, mode="lines", name="Historique"))
+                fig_fc.add_trace(
+                    go.Scatter(
+                        x=fc.index,
+                        y=fc.values,
+                        mode="lines",
+                        name="Projection (trend)",
+                        line=dict(dash="dash"),
+                    )
+                )
+                fig_fc.update_layout(
+                    title=f"Projection simple du prix – {selected_asset.name}",
+                    xaxis_title="Date",
+                    yaxis_title="Prix",
+                    height=450,
+                    margin=dict(l=40, r=20, t=50, b=40),
+                )
+                st.plotly_chart(fig_fc, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"ML projection prix: impossible de calculer ({e}).")
 
     # ---------- 2.3.2 EXPLORATEUR DE PRIX – VUE GLOBALE ----------
 
